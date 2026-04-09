@@ -384,6 +384,20 @@ def assignment_name_for_term(assignments, term_idx):
     return selected
 
 
+def assignment_names_for_term(assignments, term_idx):
+    if not assignments:
+        return ""
+    names = []
+    seen = set()
+    for item in assignments:
+        if assignment_applies_to_term(item, term_idx):
+            name = item.get("name", "")
+            if name and name not in seen:
+                names.append(name)
+                seen.add(name)
+    return " / ".join(names)
+
+
 def build_assignment_rows_from_form(form, prefix):
     names = form.getlist(f"{prefix}_name_list")
     start_years = form.getlist(f"{prefix}_start_year_list")
@@ -557,7 +571,7 @@ def build_employee_timeline(employee, years_ahead=6):
             "review_event": " / ".join(review_event) if review_event else "",
             "renew_event": " / ".join(renew_event) if renew_event else "",
             "title": assignment_name_for_term(title_assignments, idx),
-            "service_roles": assignment_name_for_term(role_assignments, idx),
+            "service_roles": assignment_names_for_term(role_assignments, idx),
             "side_notes": "",
         }
 
