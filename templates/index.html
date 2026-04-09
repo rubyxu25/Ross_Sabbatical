@@ -981,9 +981,12 @@ function attachAddHandler(buttonId, listId, templateId, labelPrefix) {
     const list = document.getElementById(listId);
     const tpl = document.getElementById(templateId);
     if (!btn || !list || !tpl) return;
-    btn.addEventListener('click', function () {
-        const node = tpl.content.firstElementChild.cloneNode(true);
-        list.appendChild(node);
+    btn.addEventListener('click', function (event) {
+        event.preventDefault();
+        // Use full template fragment cloning for better browser compatibility.
+        const fragment = tpl.content.cloneNode(true);
+        if (!fragment || !fragment.childNodes.length) return;
+        list.appendChild(fragment);
         renumberAssignmentItems(listId, labelPrefix);
     });
 }

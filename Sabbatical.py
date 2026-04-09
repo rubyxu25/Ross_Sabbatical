@@ -368,9 +368,13 @@ def parse_assignment_list(assignments, field_prefix):
     if not assignments:
         return parsed
     for assignment in assignments:
-        parsed_item = parse_optional_assignment(assignment or {}, field_prefix)
-        if parsed_item:
-            parsed.append(parsed_item)
+        try:
+            parsed_item = parse_optional_assignment(assignment or {}, field_prefix)
+            if parsed_item:
+                parsed.append(parsed_item)
+        except ValueError:
+            # Tolerate incomplete rows from UI edits so profile save/render doesn't fail.
+            continue
     return parsed
 
 
@@ -717,8 +721,26 @@ def hr_save_employee():
         emp["hire_term"] = request.form.get("hire_term", "")
         emp["tenure_package_year"] = (request.form.get("tenure_package_year") or "").strip()
         emp["tenure_package_term"] = request.form.get("tenure_package_term", "")
-        title_rows = build_assignment_rows_from_form(request.form, "title")
-        role_rows = build_assignment_rows_from_form(request.form, "service_role")
+        title_rows_raw = build_assignment_rows_from_form(request.form, "title")
+        role_rows_raw = build_assignment_rows_from_form(request.form, "service_role")
+
+        # Validate assignment rows in a tolerant mode: keep only complete rows.
+        title_rows = []
+        for row in title_rows_raw:
+            try:
+                if parse_optional_assignment(row, "title"):
+                    title_rows.append(row)
+            except ValueError:
+                continue
+
+        role_rows = []
+        for row in role_rows_raw:
+            try:
+                if parse_optional_assignment(row, "service_role"):
+                    role_rows.append(row)
+            except ValueError:
+                continue
+
         emp["title_assignments"] = title_rows
         emp["service_role_assignments"] = role_rows
         # Backward-compatible single-record mirrors.
@@ -758,8 +780,15 @@ def hr_save_employee():
             parse_int(emp["tenure_package_year"], "tenure_package_year")
             parse_term(emp["tenure_package_term"], "tenure_package_term")
 
-        parse_assignment_list(emp.get("title_assignments", []), "title")
-        parse_assignment_list(emp.get("service_role_assignments", []), "service_role")
+        # Non-fatal normalization for existing mixed-quality records.
+        emp["title_assignments"] = [
+            row for row in emp.get("title_assignments", [])
+            if parse_assignment_list([row], "title")
+        ]
+        emp["service_role_assignments"] = [
+            row for row in emp.get("service_role_assignments", [])
+            if parse_assignment_list([row], "service_role")
+        ]
 
         return redirect(url_for("home", role="hr", employee_id=employee_id))
     except ValueError as exc:
