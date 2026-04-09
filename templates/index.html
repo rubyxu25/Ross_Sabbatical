@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tenure Review and Sabbatical Eligibility Calculator</title>
+    <style>
+        :root {
+            --brand: #00274C;
+            --brand-strong: #001b35;
+            --bg: #f3f6fb;
+            --line: #d5dde8;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --card: #ffffff;
+            --shadow-soft: 0 6px 18px rgba(16, 36, 63, 0.08);
+            --shadow-strong: 0 10px 28px rgba(16, 36, 63, 0.12);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Segoe UI", Arial, sans-serif;
+            line-height: 1.45;
+        }
+        .container {
+            width: min(1680px, 98vw);
+            margin: 18px auto 28px;
+        }
+        .hero {
+            background: linear-gradient(120deg, #003968, var(--brand));
+            color: #fff;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+        }
+        .hero h1 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+        .top-actions {
+            display: flex;
+            gap: 8px;
+            margin: 12px 0;
+            padding: 8px;
+            border: 1px solid #d8e0ec;
+            border-radius: 10px;
+            background: #ffffffcc;
+            backdrop-filter: blur(2px);
+            position: sticky;
+            top: 8px;
+            z-index: 8;
+        }
+        .push-right {
+            margin-left: auto;
+        }
+        .btn {
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-primary { background: var(--brand); color: #fff; }
+        .btn-primary:hover { background: var(--brand-strong); }
+        .btn-light { background: #eef3fb; color: #10243f; border: 1px solid #cfd9e8; }
+        .btn-light:hover,
+        .btn-light:active {
+            background: var(--brand-strong);
+            color: #fff;
+            border-color: var(--brand-strong);
+        }
+        .btn-entry {
+            background: #fff;
+            color: var(--brand);
+            border: 1px solid #b9c9de;
+        }
+        .btn-entry:hover,
+        .btn-entry:active,
+        .btn-entry.active {
+            background: var(--brand-strong);
+            color: #fff;
+            border-color: var(--brand-strong);
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 300px minmax(0, 1fr);
+            gap: 14px;
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 14px;
+            box-shadow: var(--shadow-soft);
+        }
+        .card-strong {
+            border-color: #c7d3e6;
+            box-shadow: var(--shadow-strong);
+        }
+        .card h2, .card h3 { margin: 0 0 10px; letter-spacing: 0.1px; }
+        .hint { color: var(--muted); font-size: 0.88rem; margin-bottom: 10px; }
+        label { display: block; font-size: 0.88rem; margin: 7px 0; font-weight: 600; color: #22354b; }
+        input, select, textarea {
+            width: 100%;
+            border: 1px solid #c8d2e0;
+            border-radius: 7px;
+            padding: 8px 9px;
+            font-size: 0.9rem;
+            margin-top: 4px;
+            background: #fff;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #4a78a9;
+            outline: 2px solid #d9e8f8;
+            outline-offset: 0;
+        }
+        textarea { min-height: 56px; }
+        .row2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .form-section {
+            border: 1px solid #dce3ef;
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 12px;
+            background: #f9fbff;
+        }
+        .form-section h4 {
+            margin: 0 0 10px;
+            color: #12385e;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .assignment-list {
+            display: grid;
+            gap: 8px;
+        }
+        .assignment-item {
+            border: 1px solid #d7e1ef;
+            background: #fff;
+            border-radius: 8px;
+            padding: 8px;
+        }
+        .assignment-item-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        .assignment-item-head strong {
+            font-size: 0.85rem;
+            color: #335476;
+        }
+        .btn-danger {
+            background: #b43a3a;
+            color: #fff;
+        }
+        .btn-danger:hover {
+            background: #8f2626;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.86rem;
+        }
+        .table-wrap {
+            overflow-x: auto;
+        }
+        .timeline-table th,
+        .timeline-table td {
+            white-space: nowrap;
+        }
+        .timeline-table .col-narrow {
+            width: 84px;
+        }
+        .timeline-table th.col-narrow {
+            white-space: normal;
+            line-height: 1.1;
+        }
+        .timeline-table td.col-narrow {
+            white-space: nowrap;
+        }
+        .timeline-table td.col-narrow input {
+            min-width: 0;
+        }
+        .timeline-table .col-counter {
+            width: 96px;
+        }
+        .timeline-table th.col-counter {
+            white-space: normal;
+            line-height: 1.1;
+        }
+        .timeline-table td.col-counter {
+            white-space: nowrap;
+        }
+        .timeline-table td.col-counter input {
+            min-width: 0;
+        }
+        .title-assistant {
+            background: #e8f1ff;
+        }
+        .title-associate {
+            background: #e8fff4;
+        }
+        .title-full {
+            background: #fff4e5;
+        }
+        .title-empty {
+            background: #f1f5fa;
+        }
+        th, td {
+            border: 1px solid #d4dde9;
+            padding: 7px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th { background: #edf2fa; font-weight: 700; color: #14314f; }
+        tbody tr:hover td {
+            background: #f2f7ff;
+        }
+        .timeline-table th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .pill {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            border: 1px solid #d0daea;
+            background: #f8fbff;
+        }
+        .delta {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .delta-plus { background: #1f8f4e; }
+        .delta-minus { background: #c43b3b; }
+        .ok { color: #0f5132; background: #e8f6ee; border-color: #b8dfc4; }
+        .bad { color: #7f1d1d; background: #fdecec; border-color: #f6c1c1; }
+        .warn { color: #7a4a00; background: #fff7e2; border-color: #f2de9d; }
+        .error {
+            margin: 8px 0;
+            border: 1px solid #f3c0c0;
+            background: #fff0f0;
+            color: #8a1c1c;
+            border-radius: 8px;
+            padding: 8px;
+            font-weight: 600;
+        }
+        .spacer { height: 8px; }
+        .nowrap { white-space: nowrap; }
+        @media (max-width: 980px) {
+            .grid { grid-template-columns: 1fr; }
+            .row2 { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="hero">
+        <h1>Tenure Review and Sabbatical Eligibility Calculator</h1>
+    </div>
+
+    <div class="top-actions">
+        <a class="btn btn-entry {% if role == 'hr' %}active{% endif %}" href="{{ url_for('home', role='hr') }}">HR Entry</a>
+        <a class="btn btn-entry {% if role == 'employee' %}active{% endif %}" href="{{ url_for('home', role='employee') }}">Employee Entry</a>
+        {% if selected and timeline %}
+        <a class="btn btn-light push-right" href="{{ url_for('export_timeline_csv', employee_id=selected.employee_id) }}">Export Timeline as CSV</a>
+        {% endif %}
+    </div>
+
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if role == 'hr' %}
+    <div class="grid">
+        <div>
+            <div class="card">
+                <h2>Employee List</h2>
+                <p class="hint">Create, open, and edit employee records.</p>
+                <form method="get" action="{{ url_for('home') }}">
+                    <input type="hidden" name="role" value="hr">
+                    <label>Search (ID or Name)
+                        <input type="text" name="q" value="{{ search or '' }}" placeholder="e.g. 123 or Roman">
+                    </label>
+                    {% if selected %}
+                    <input type="hidden" name="employee_id" value="{{ selected.employee_id }}">
+                    {% endif %}
+                    <button class="btn btn-light" type="submit">Search</button>
+                    <a class="btn btn-light" href="{{ url_for('home', role='hr') }}">Clear</a>
+                </form>
+                <div class="spacer"></div>
+                <table>
+                    <thead>
+                        <tr><th>ID</th><th>Name</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                    {% for emp in employees %}
+                        <tr>
+                            <td class="nowrap">{{ emp.employee_id }}</td>
+                            <td>{{ emp.name or '-' }}</td>
+                            <td><a class="btn btn-light" href="{{ url_for('home', role='hr', employee_id=emp.employee_id, q=search) }}">Open</a></td>
+                        </tr>
+                    {% endfor %}
+                    {% if not employees %}
+                        <tr>
+                            <td colspan="3">No matching employees.</td>
+                        </tr>
+                    {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card card-strong">
+                <h3>Save Employee Profile</h3>
+                <form method="post" action="{{ url_for('hr_save_employee') }}">
+                    {% set title_rows = selected.get('title_assignments', []) if selected else [] %}
+                    {% if not title_rows %}
+                        {% set single_title = selected.get('title_assignment', {}) if selected else {} %}
+                        {% if single_title and (single_title.get('name') or single_title.get('start_year') or single_title.get('end_year')) %}
+                            {% set title_rows = [single_title] %}
+                        {% else %}
+                            {% set title_rows = [{}] %}
+                        {% endif %}
+                    {% endif %}
+                    {% set role_rows = selected.get('service_role_assignments', []) if selected else [] %}
+                    {% if not role_rows %}
+                        {% set single_role = selected.get('service_role_assignment', {}) if selected else {} %}
+                        {% if single_role and (single_role.get('name') or single_role.get('start_year') or single_role.get('end_year')) %}
+                            {% set role_rows = [single_role] %}
+                        {% else %}
+                            {% set role_rows = [{}] %}
+                        {% endif %}
+                    {% endif %}
+
+                    <div class="form-section">
+                        <h4>1. Basic Profile</h4>
+                        <label>Employee ID
+                            <input type="text" name="employee_id" value="{{ selected.employee_id if selected else '' }}" required>
+                        </label>
+                        <label>Name
+                            <input type="text" name="name" value="{{ selected.name if selected else '' }}">
+                        </label>
+                        <div class="row2">
+                            <label>Hire Year
+                                <input type="text" name="hire_year" value="{{ selected.hire_year if selected else '' }}">
+                            </label>
+                            <label>Hire Term
+                                <select name="hire_term">
+                                    <option value="">Select...</option>
+                                    <option value="Fall" {% if selected and selected.hire_term == 'Fall' %}selected{% endif %}>Fall</option>
+                                    <option value="Winter" {% if selected and selected.hire_term == 'Winter' %}selected{% endif %}>Winter</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="row2">
+                            <label>Tenure Package Year
+                                <input type="text" name="tenure_package_year" value="{{ selected.tenure_package_year if selected else '' }}">
+                            </label>
+                            <label>Tenure Package Term
+                                <select name="tenure_package_term">
+                                    <option value="">Default: 12th semester</option>
+                                    <option value="Fall" {% if selected and selected.tenure_package_term == 'Fall' %}selected{% endif %}>Fall</option>
+                                    <option value="Winter" {% if selected and selected.tenure_package_term == 'Winter' %}selected{% endif %}>Winter</option>
+                                </select>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>2. Checkpoint Outcomes</h4>
+                        <div class="row2">
+                            <label>First Renew
+                                <select name="checkpoint_first_renew" id="checkpoint_first_renew">
+                                    {% for s in tenure_status %}
+                                    <option value="{{ s }}" {% if selected and selected.checkpoint_status.first_renew == s %}selected{% endif %}>{{ s }}</option>
+                                    {% endfor %}
+                                </select>
+                            </label>
+                            <label>Second Renew
+                                <select name="checkpoint_second_renew" id="checkpoint_second_renew">
+                                    {% for s in tenure_status %}
+                                    <option value="{{ s }}" {% if selected and selected.checkpoint_status.second_renew == s %}selected{% endif %}>{{ s }}</option>
+                                    {% endfor %}
+                                </select>
+                            </label>
+                        </div>
+                        <div class="row2">
+                            <label id="first-renew-next-wrap">Next Year's First Renew
+                                <select name="checkpoint_first_renew_next" id="checkpoint_first_renew_next">
+                                    {% set first_renew_next = selected.checkpoint_status.get('first_renew_next', '') if selected else '' %}
+                                    {% for s in next_renew_status %}
+                                    <option value="{{ s }}" {% if first_renew_next == s %}selected{% endif %}>{{ s or 'Select...' }}</option>
+                                    {% endfor %}
+                                </select>
+                            </label>
+                            <label id="second-renew-next-wrap">Next Year's Second Renew
+                                <select name="checkpoint_second_renew_next" id="checkpoint_second_renew_next">
+                                    {% set second_renew_next = selected.checkpoint_status.get('second_renew_next', '') if selected else '' %}
+                                    {% for s in next_renew_status %}
+                                    <option value="{{ s }}" {% if second_renew_next == s %}selected{% endif %}>{{ s or 'Select...' }}</option>
+                                    {% endfor %}
+                                </select>
+                            </label>
+                        </div>
+                        <label>Tenure Review
+                            <select name="checkpoint_tenure_review">
+                                {% for s in tenure_status %}
+                                <option value="{{ s }}" {% if selected and selected.checkpoint_status.tenure_review == s %}selected{% endif %}>{{ s }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>3. Title Assignment</h4>
+                        <div class="assignment-list" id="title-assignment-list">
+                            {% for row in title_rows %}
+                            <div class="assignment-item">
+                                <div class="assignment-item-head">
+                                    <strong>Title Period {{ loop.index }}</strong>
+                                    <button type="button" class="btn btn-danger btn-delete-assignment">Delete</button>
+                                </div>
+                                <label>Title Name
+                                    <select name="title_name_list">
+                                        {% set selected_title_name = row.get('name', '') %}
+                                        {% for t in title_options %}
+                                        <option value="{{ t }}" {% if selected_title_name == t %}selected{% endif %}>{{ t or 'Select...' }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </label>
+                                <div class="row2">
+                                    <label>Start Year
+                                        <input type="text" name="title_start_year_list" value="{{ row.get('start_year', '') }}">
+                                    </label>
+                                    <label>Start Term
+                                        <select name="title_start_term_list">
+                                            {% set title_start_term = row.get('start_term', '') %}
+                                            <option value="">Select...</option>
+                                            <option value="Fall" {% if title_start_term == 'Fall' %}selected{% endif %}>Fall</option>
+                                            <option value="Winter" {% if title_start_term == 'Winter' %}selected{% endif %}>Winter</option>
+                                        </select>
+                                    </label>
+                                </div>
+                                <div class="row2">
+                                    <label>End Year
+                                        <input type="text" name="title_end_year_list" value="{{ row.get('end_year', '') }}">
+                                    </label>
+                                    <label>End Term
+                                        <select name="title_end_term_list">
+                                            {% set title_end_term = row.get('end_term', '') %}
+                                            <option value="">Select...</option>
+                                            <option value="Fall" {% if title_end_term == 'Fall' %}selected{% endif %}>Fall</option>
+                                            <option value="Winter" {% if title_end_term == 'Winter' %}selected{% endif %}>Winter</option>
+                                        </select>
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="spacer"></div>
+                        <button type="button" class="btn btn-light" id="add-title-assignment">Add Title Assignment</button>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>4. Service Role Assignment</h4>
+                        <div class="assignment-list" id="service-role-assignment-list">
+                            {% for row in role_rows %}
+                            <div class="assignment-item">
+                                <div class="assignment-item-head">
+                                    <strong>Service Role Period {{ loop.index }}</strong>
+                                    <button type="button" class="btn btn-danger btn-delete-assignment">Delete</button>
+                                </div>
+                                <label>Service Role Name
+                                    <select name="service_role_name_list">
+                                        {% set selected_role_name = row.get('name', '') %}
+                                        {% for r in service_role_options %}
+                                        <option value="{{ r }}" {% if selected_role_name == r %}selected{% endif %}>{{ r or 'Select...' }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </label>
+                                <div class="row2">
+                                    <label>Start Year
+                                        <input type="text" name="service_role_start_year_list" value="{{ row.get('start_year', '') }}">
+                                    </label>
+                                    <label>Start Term
+                                        {% set role_start_term = row.get('start_term', '') %}
+                                        <select name="service_role_start_term_list">
+                                            <option value="">Select...</option>
+                                            <option value="Fall" {% if role_start_term == 'Fall' %}selected{% endif %}>Fall</option>
+                                            <option value="Winter" {% if role_start_term == 'Winter' %}selected{% endif %}>Winter</option>
+                                        </select>
+                                    </label>
+                                </div>
+                                <div class="row2">
+                                    <label>End Year
+                                        <input type="text" name="service_role_end_year_list" value="{{ row.get('end_year', '') }}">
+                                    </label>
+                                    <label>End Term
+                                        {% set role_end_term = row.get('end_term', '') %}
+                                        <select name="service_role_end_term_list">
+                                            <option value="">Select...</option>
+                                            <option value="Fall" {% if role_end_term == 'Fall' %}selected{% endif %}>Fall</option>
+                                            <option value="Winter" {% if role_end_term == 'Winter' %}selected{% endif %}>Winter</option>
+                                        </select>
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="spacer"></div>
+                        <button type="button" class="btn btn-light" id="add-role-assignment">Add Service Role Assignment</button>
+                    </div>
+                    <div class="spacer"></div>
+                    <button class="btn btn-primary" type="submit">Save Profile</button>
+                </form>
+                {% if selected %}
+                <div class="spacer"></div>
+                <form method="post" action="{{ url_for('hr_delete_employee') }}" onsubmit="return confirm('Delete this faculty profile? This cannot be undone.');">
+                    <input type="hidden" name="employee_id" value="{{ selected.employee_id }}">
+                    <button class="btn btn-danger" type="submit">Delete Faculty Profile</button>
+                </form>
+                {% endif %}
+            </div>
+
+            {% if selected %}
+            <div class="card">
+                <h3>Add Event (HR)</h3>
+                <form method="post" action="{{ url_for('hr_add_event') }}">
+                    <input type="hidden" name="employee_id" value="{{ selected.employee_id }}">
+                    <label>Event Type
+                        <select name="event_type" required>
+                            {% for key, label in event_labels.items() %}
+                            <option value="{{ key }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <div class="row2">
+                        <label>Start Year<input type="text" name="start_year" required></label>
+                        <label>Start Term
+                            <select name="start_term" required>
+                                <option value="Fall">Fall</option>
+                                <option value="Winter">Winter</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="row2">
+                        <label>End Year<input type="text" name="end_year" required></label>
+                        <label>End Term
+                            <select name="end_term" required>
+                                <option value="Fall">Fall</option>
+                                <option value="Winter">Winter</option>
+                            </select>
+                        </label>
+                    </div>
+                    <label>Sabbatical Duration (only for sabbatical)
+                        <select name="sabbatical_duration">
+                            <option value="1">1 term</option>
+                            <option value="2">2 terms</option>
+                        </select>
+                    </label>
+                    <button class="btn btn-primary" type="submit">Add Approved Event</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        <div>
+            <div class="card card-strong">
+                <h2>Faculty Timeline Sheet</h2>
+                {% if selected %}
+                <p class="hint">Employee: <strong>{{ selected.name or '(no name)' }}</strong> ({{ selected.employee_id }})</p>
+                {% if timeline %}
+                <p class="hint">Current term baseline: {{ timeline.current_term }}.</p>
+
+                {% if edit_mode %}
+                <form method="post" action="{{ url_for('hr_save_overrides') }}">
+                    <input type="hidden" name="employee_id" value="{{ selected.employee_id }}">
+                    <div class="table-wrap">
+                    <table class="timeline-table">
+                        <thead>
+                            <tr>
+                                <th>Term</th>
+                                <th class="col-narrow">Term Count</th>
+                                <th class="col-counter">Sabbaticals Counter</th>
+                                <th class="col-narrow">Sabbatical Bank</th>
+                                <th>Eligibility Status</th>
+                                <th>Review Event</th>
+                                <th>Renew Event</th>
+                                <th>Title</th>
+                                <th>Service Roles</th>
+                                <th>Side Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for row in timeline.rows %}
+                            <tr>
+                                <td>
+                                    {{ row.term_label }}
+                                    <input type="hidden" name="override_key" value="{{ row.key }}">
+                                </td>
+                                <td class="col-narrow"><input type="text" name="term_count_{{ row.key }}" value="{{ selected.timeline_overrides.get(row.key, {}).get('term_count', row.term_count) }}"></td>
+                                <td class="col-counter"><input type="text" name="counter_{{ row.key }}" value="{{ selected.timeline_overrides.get(row.key, {}).get('sabbaticals_counter', row.sabbaticals_counter) }}"></td>
+                                <td class="col-narrow"><input type="text" name="bank_{{ row.key }}" value="{{ selected.timeline_overrides.get(row.key, {}).get('sabbatical_bank', row.sabbatical_bank) }}"></td>
+                                <td><input type="text" name="eligibility_{{ row.key }}" value="{{ selected.timeline_overrides.get(row.key, {}).get('eligibility_status', row.eligibility_status) }}"></td>
+                                <td><input type="text" name="review_{{ row.key }}" value="{{ selected.timeline_overrides.get(row.key, {}).get('review_event', row.review_event) }}"></td>
+                                <td><input type="text" name="renew_{{ row.key }}" value="{{ selected.timeline_overrides.get(row.key, {}).get('renew_event', row.renew_event) }}"></td>
+                                {% set selected_title = selected.timeline_overrides.get(row.key, {}).get('title', row.title) %}
+                                {% set title_class = 'title-empty' %}
+                                {% if selected_title == 'Assistant Professor' %}{% set title_class = 'title-assistant' %}{% endif %}
+                                {% if selected_title == 'Associate Professor' %}{% set title_class = 'title-associate' %}{% endif %}
+                                {% if selected_title == 'Full Professor' %}{% set title_class = 'title-full' %}{% endif %}
+                                <td class="{{ title_class }}">
+                                    <select name="title_{{ row.key }}">
+                                        {% for t in title_options %}
+                                        <option value="{{ t }}" {% if selected_title == t %}selected{% endif %}>{{ t or '-' }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="roles_{{ row.key }}">
+                                        {% set selected_role = selected.timeline_overrides.get(row.key, {}).get('service_roles', row.service_roles) %}
+                                        {% for r in service_role_options %}
+                                        <option value="{{ r }}" {% if selected_role == r %}selected{% endif %}>{{ r or '-' }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td><input type="text" name="notes_{{ row.key }}" value="{{ selected.timeline_overrides.get(row.key, {}).get('side_notes', row.side_notes) }}"></td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                    <div class="spacer"></div>
+                    <button class="btn btn-primary" type="submit">Finish Editing</button>
+                    <a class="btn btn-light" href="{{ url_for('home', role='hr', employee_id=selected.employee_id, edit='0') }}">Cancel</a>
+                </form>
+                {% else %}
+                <div class="table-wrap">
+                <table class="timeline-table">
+                    <thead>
+                        <tr>
+                            <th>Term</th>
+                            <th class="col-narrow">Term Count</th>
+                            <th class="col-counter">Sabbaticals Counter</th>
+                            <th class="col-narrow">Sabbatical Bank</th>
+                            <th>Eligibility Status</th>
+                            <th>Review Event</th>
+                            <th>Renew Event</th>
+                            <th>Title</th>
+                            <th>Service Roles</th>
+                            <th>Side Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in timeline.rows %}
+                        <tr>
+                            <td>{{ row.term_label }}</td>
+                            <td class="col-narrow">{{ row.term_count }}</td>
+                            <td class="col-counter">{{ row.sabbaticals_counter }}</td>
+                            <td class="col-narrow">
+                                {{ row.sabbatical_bank }}
+                                {% if row.bank_delta == 1 %}<span class="delta delta-plus">+1</span>{% endif %}
+                                {% if row.bank_delta == -1 %}<span class="delta delta-minus">-1</span>{% endif %}
+                            </td>
+                            <td>{{ row.eligibility_status }}</td>
+                            <td>{{ row.review_event }}</td>
+                            <td>{{ row.renew_event }}</td>
+                            {% set title_class = 'title-empty' %}
+                            {% if row.title == 'Assistant Professor' %}{% set title_class = 'title-assistant' %}{% endif %}
+                            {% if row.title == 'Associate Professor' %}{% set title_class = 'title-associate' %}{% endif %}
+                            {% if row.title == 'Full Professor' %}{% set title_class = 'title-full' %}{% endif %}
+                            <td class="{{ title_class }}">{{ row.title }}</td>
+                            <td>{{ row.service_roles }}</td>
+                            <td>{{ row.side_notes }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+                <div class="spacer"></div>
+                <a class="btn btn-primary" href="{{ url_for('home', role='hr', employee_id=selected.employee_id, edit='1') }}">Edit</a>
+                {% endif %}
+
+                <div class="spacer"></div>
+                <h3>Events</h3>
+                <table>
+                    <thead>
+                        <tr><th>#</th><th>Type</th><th>Range</th><th>Source</th><th>Status</th><th>Action</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for e in selected.events %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ event_labels.get(e.event_type, e.event_type) }}</td>
+                            <td>{{ e.start_term }} {{ e.start_year }} -> {{ e.end_term }} {{ e.end_year }}</td>
+                            <td>{{ e.source }}</td>
+                            <td>{{ e.status }}</td>
+                            <td>
+                                {% if e.status != 'approved' %}
+                                <form method="post" action="{{ url_for('hr_approve_event') }}">
+                                    <input type="hidden" name="employee_id" value="{{ selected.employee_id }}">
+                                    <input type="hidden" name="event_idx" value="{{ loop.index0 }}">
+                                    <button class="btn btn-light" type="submit">Approve</button>
+                                </form>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="hint">Save hire year/term first to generate timeline.</p>
+                {% endif %}
+                {% else %}
+                <p class="hint">Select an employee from the left list to edit and view timeline.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% elif role == 'employee' %}
+    <div class="card">
+        <h2>Employee Portal</h2>
+        <form method="get" action="{{ url_for('home') }}">
+            <input type="hidden" name="role" value="employee">
+            <label>Employee ID
+                <input type="text" name="employee_id" value="{{ selected.employee_id if selected else request.args.get('employee_id','') }}" required>
+            </label>
+            <button class="btn btn-primary" type="submit">Open My Timeline</button>
+        </form>
+    </div>
+
+    {% if selected %}
+    <div class="card card-strong">
+        <h3>My Timeline (Read-only)</h3>
+        {% if timeline %}
+        <div class="table-wrap">
+        <table class="timeline-table">
+            <thead>
+                <tr>
+                    <th>Term</th>
+                    <th class="col-narrow">Term Count</th>
+                    <th class="col-counter">Sabbaticals Counter</th>
+                    <th class="col-narrow">Sabbatical Bank</th>
+                    <th>Eligibility Status</th>
+                    <th>Review Event</th>
+                    <th>Renew Event</th>
+                    <th>Title</th>
+                    <th>Service Roles</th>
+                    <th>Side Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in timeline.rows %}
+                <tr>
+                    <td>{{ row.term_label }}</td>
+                    <td class="col-narrow">{{ row.term_count }}</td>
+                    <td class="col-counter">{{ row.sabbaticals_counter }}</td>
+                    <td class="col-narrow">
+                        {{ row.sabbatical_bank }}
+                        {% if row.bank_delta == 1 %}<span class="delta delta-plus">+1</span>{% endif %}
+                        {% if row.bank_delta == -1 %}<span class="delta delta-minus">-1</span>{% endif %}
+                    </td>
+                    <td>{{ row.eligibility_status }}</td>
+                    <td>{{ row.review_event }}</td>
+                    <td>{{ row.renew_event }}</td>
+                    {% set title_class = 'title-empty' %}
+                    {% if row.title == 'Assistant Professor' %}{% set title_class = 'title-assistant' %}{% endif %}
+                    {% if row.title == 'Associate Professor' %}{% set title_class = 'title-associate' %}{% endif %}
+                    {% if row.title == 'Full Professor' %}{% set title_class = 'title-full' %}{% endif %}
+                    <td class="{{ title_class }}">{{ row.title }}</td>
+                    <td>{{ row.service_roles }}</td>
+                    <td>{{ row.side_notes }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p class="hint">Timeline not available yet. Please contact HR to complete profile setup.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Submit Leave Request</h3>
+        <p class="hint">You can submit leave requests. HR must approve before it affects timeline.</p>
+        <form method="post" action="{{ url_for('employee_request_leave') }}">
+            <input type="hidden" name="employee_id" value="{{ selected.employee_id }}">
+            <label>Leave Type
+                <select name="event_type" required>
+                    <option value="{{ 'medical_leave' }}">Medical Leave (>= 1 term)</option>
+                    <option value="{{ 'medical_leave_with_extension' }}">Medical Leave with Extension (>= 2 terms)</option>
+                    <option value="{{ 'medical_leave_with_exclusion' }}">Medical Leave with Exclusion (>= 2 terms)</option>
+                    <option value="{{ 'sabbatical_leave' }}">Sabbatical Leave (1 or 2 terms)</option>
+                    <option value="{{ 'exclusion' }}">Exclusion</option>
+                    <option value="{{ 'extension' }}">Extension</option>
+                </select>
+            </label>
+            <div class="row2">
+                <label>Start Year<input type="text" name="start_year" required></label>
+                <label>Start Term
+                    <select name="start_term" required>
+                        <option value="Fall">Fall</option>
+                        <option value="Winter">Winter</option>
+                    </select>
+                </label>
+            </div>
+            <div class="row2">
+                <label>End Year<input type="text" name="end_year" required></label>
+                <label>End Term
+                    <select name="end_term" required>
+                        <option value="Fall">Fall</option>
+                        <option value="Winter">Winter</option>
+                    </select>
+                </label>
+            </div>
+            <label>Sabbatical Duration
+                <select name="sabbatical_duration">
+                    <option value="1">1 term</option>
+                    <option value="2">2 terms</option>
+                </select>
+            </label>
+            <button class="btn btn-primary" type="submit">Submit Request</button>
+        </form>
+        <div class="spacer"></div>
+        <h3>My Submitted Leave Requests</h3>
+        <p class="hint">All new requests are pending until HR approval.</p>
+        <table>
+            <thead>
+                <tr><th>#</th><th>Type</th><th>Range</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+            {% set employee_events = selected.events | selectattr('source', 'equalto', 'employee') | list %}
+            {% for e in employee_events %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ event_labels.get(e.event_type, e.event_type) }}</td>
+                    <td>{{ e.start_term }} {{ e.start_year }} -> {{ e.end_term }} {{ e.end_year }}</td>
+                    <td>{{ e.status }}</td>
+                </tr>
+            {% endfor %}
+            {% if not employee_events %}
+                <tr><td colspan="4">No leave request submitted yet.</td></tr>
+            {% endif %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="card">
+        <h2>Select Entry</h2>
+        <p class="hint">Choose HR Entry for employee management, or Employee Entry for self-service timeline and leave request.</p>
+    </div>
+    {% endif %}
+</div>
+<template id="title-assignment-template">
+    <div class="assignment-item">
+        <div class="assignment-item-head">
+            <strong>Title Period</strong>
+            <button type="button" class="btn btn-danger btn-delete-assignment">Delete</button>
+        </div>
+        <label>Title Name
+            <select name="title_name_list">
+                {% for t in title_options %}
+                <option value="{{ t }}">{{ t or 'Select...' }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <div class="row2">
+            <label>Start Year
+                <input type="text" name="title_start_year_list" value="">
+            </label>
+            <label>Start Term
+                <select name="title_start_term_list">
+                    <option value="">Select...</option>
+                    <option value="Fall">Fall</option>
+                    <option value="Winter">Winter</option>
+                </select>
+            </label>
+        </div>
+        <div class="row2">
+            <label>End Year
+                <input type="text" name="title_end_year_list" value="">
+            </label>
+            <label>End Term
+                <select name="title_end_term_list">
+                    <option value="">Select...</option>
+                    <option value="Fall">Fall</option>
+                    <option value="Winter">Winter</option>
+                </select>
+            </label>
+        </div>
+    </div>
+</template>
+<template id="role-assignment-template">
+    <div class="assignment-item">
+        <div class="assignment-item-head">
+            <strong>Service Role Period</strong>
+            <button type="button" class="btn btn-danger btn-delete-assignment">Delete</button>
+        </div>
+        <label>Service Role Name
+            <select name="service_role_name_list">
+                {% for r in service_role_options %}
+                <option value="{{ r }}">{{ r or 'Select...' }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <div class="row2">
+            <label>Start Year
+                <input type="text" name="service_role_start_year_list" value="">
+            </label>
+            <label>Start Term
+                <select name="service_role_start_term_list">
+                    <option value="">Select...</option>
+                    <option value="Fall">Fall</option>
+                    <option value="Winter">Winter</option>
+                </select>
+            </label>
+        </div>
+        <div class="row2">
+            <label>End Year
+                <input type="text" name="service_role_end_year_list" value="">
+            </label>
+            <label>End Term
+                <select name="service_role_end_term_list">
+                    <option value="">Select...</option>
+                    <option value="Fall">Fall</option>
+                    <option value="Winter">Winter</option>
+                </select>
+            </label>
+        </div>
+    </div>
+</template>
+<script>
+function renumberAssignmentItems(listId, labelPrefix) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    const titles = list.querySelectorAll('.assignment-item-head strong');
+    titles.forEach((el, idx) => {
+        el.textContent = `${labelPrefix} ${idx + 1}`;
+    });
+}
+
+function attachDeleteHandlers(listId, labelPrefix) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    list.addEventListener('click', function (event) {
+        const btn = event.target.closest('.btn-delete-assignment');
+        if (!btn) return;
+        const item = btn.closest('.assignment-item');
+        if (!item) return;
+        if (list.children.length <= 1) return;
+        item.remove();
+        renumberAssignmentItems(listId, labelPrefix);
+    });
+}
+
+function attachAddHandler(buttonId, listId, templateId, labelPrefix) {
+    const btn = document.getElementById(buttonId);
+    const list = document.getElementById(listId);
+    const tpl = document.getElementById(templateId);
+    if (!btn || !list || !tpl) return;
+    btn.addEventListener('click', function () {
+        const node = tpl.content.firstElementChild.cloneNode(true);
+        list.appendChild(node);
+        renumberAssignmentItems(listId, labelPrefix);
+    });
+}
+
+attachDeleteHandlers('title-assignment-list', 'Title Period');
+attachDeleteHandlers('service-role-assignment-list', 'Service Role Period');
+attachAddHandler('add-title-assignment', 'title-assignment-list', 'title-assignment-template', 'Title Period');
+attachAddHandler('add-role-assignment', 'service-role-assignment-list', 'role-assignment-template', 'Service Role Period');
+renumberAssignmentItems('title-assignment-list', 'Title Period');
+renumberAssignmentItems('service-role-assignment-list', 'Service Role Period');
+
+function toggleNextRenewField(mainSelectId, wrapId, nextSelectId) {
+    const mainSelect = document.getElementById(mainSelectId);
+    const wrap = document.getElementById(wrapId);
+    const nextSelect = document.getElementById(nextSelectId);
+    if (!mainSelect || !wrap || !nextSelect) return;
+    const sync = () => {
+        const failed = mainSelect.value === 'failed';
+        wrap.style.display = failed ? 'block' : 'none';
+        if (!failed) nextSelect.value = '';
+    };
+    mainSelect.addEventListener('change', sync);
+    sync();
+}
+
+toggleNextRenewField('checkpoint_first_renew', 'first-renew-next-wrap', 'checkpoint_first_renew_next');
+toggleNextRenewField('checkpoint_second_renew', 'second-renew-next-wrap', 'checkpoint_second_renew_next');
+</script>
+</body>
+</html>
