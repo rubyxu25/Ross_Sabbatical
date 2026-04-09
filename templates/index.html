@@ -636,6 +636,9 @@
                                 <td>
                                     <select name="roles_{{ row.key }}">
                                         {% set selected_role = selected.timeline_overrides.get(row.key, {}).get('service_roles', row.service_roles) %}
+                                        {% if selected_role and selected_role not in service_role_options %}
+                                        <option value="{{ selected_role }}" selected>{{ selected_role }}</option>
+                                        {% endif %}
                                         {% for r in service_role_options %}
                                         <option value="{{ r }}" {% if selected_role == r %}selected{% endif %}>{{ r or '-' }}</option>
                                         {% endfor %}
