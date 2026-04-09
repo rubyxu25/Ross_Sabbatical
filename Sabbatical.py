@@ -759,6 +759,19 @@ def hr_save_employee():
             "end_term": "",
         }
 
+        # Service role assignments are now managed from profile input; clear stale
+        # per-term service role overrides so updated periods apply immediately.
+        cleaned_overrides = {}
+        for key, override in (emp.get("timeline_overrides") or {}).items():
+            if not isinstance(override, dict):
+                continue
+            new_override = dict(override)
+            new_override["service_roles"] = ""
+            # Keep the row only if other override fields still contain data.
+            if any((str(v).strip() != "") for k, v in new_override.items() if k != "service_roles"):
+                cleaned_overrides[key] = new_override
+        emp["timeline_overrides"] = cleaned_overrides
+
         for key in ("first_renew", "second_renew", "tenure_review"):
             status_val = request.form.get(f"checkpoint_{key}", "scheduled")
             if status_val not in TENURE_STATUS:
