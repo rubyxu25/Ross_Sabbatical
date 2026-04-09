@@ -398,6 +398,24 @@ def assignment_names_for_term(assignments, term_idx):
     return " / ".join(names)
 
 
+def merge_role_values(override_roles, computed_roles):
+    override_roles = (override_roles or "").strip()
+    computed_roles = (computed_roles or "").strip()
+    if not override_roles:
+        return computed_roles
+    if not computed_roles:
+        return override_roles
+
+    merged = []
+    seen = set()
+    for part in (override_roles.split("/") + computed_roles.split("/")):
+        name = part.strip()
+        if name and name not in seen:
+            merged.append(name)
+            seen.add(name)
+    return " / ".join(merged)
+
+
 def build_assignment_rows_from_form(form, prefix):
     names = form.getlist(f"{prefix}_name_list")
     start_years = form.getlist(f"{prefix}_start_year_list")
@@ -589,7 +607,10 @@ def build_employee_timeline(employee, years_ahead=6):
         ):
             val = override.get(field, "")
             if val != "":
-                base[field] = val
+                if field == "service_roles":
+                    base[field] = merge_role_values(val, base[field])
+                else:
+                    base[field] = val
 
         rows.append(base)
 
