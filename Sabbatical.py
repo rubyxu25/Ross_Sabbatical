@@ -8,7 +8,7 @@ app = Flask(__name__)
 CURRENT_YEAR = 2026
 CURRENT_TERM = "Winter"
 VALID_TERMS = {"Fall", "Winter"}
-TERM_ORDER = ["Fall", "Winter"]
+TERM_ORDER = ["Winter", "Fall"]
 
 EVENT_SABBATICAL = "sabbatical_leave"
 EVENT_MEDICAL = "medical_leave"
@@ -252,11 +252,11 @@ def parse_term(value, field_name, required=True):
 def get_term_index(year, term):
     if term not in VALID_TERMS:
         raise ValueError(f"Unknown term: {term}")
-    return year * 2 + (0 if term == "Fall" else 1)
+    return year * 2 + (0 if term == "Winter" else 1)
 
 
 def get_year_term(index):
-    return index // 2, "Fall" if index % 2 == 0 else "Winter"
+    return index // 2, "Winter" if index % 2 == 0 else "Fall"
 
 
 def term_count(start_year, start_term, end_year, end_term):

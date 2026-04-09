@@ -365,8 +365,8 @@
                             <label>Hire Term
                                 <select name="hire_term">
                                     <option value="">Select...</option>
-                                    <option value="Fall" {% if selected and selected.hire_term == 'Fall' %}selected{% endif %}>Fall</option>
                                     <option value="Winter" {% if selected and selected.hire_term == 'Winter' %}selected{% endif %}>Winter</option>
+                                    <option value="Fall" {% if selected and selected.hire_term == 'Fall' %}selected{% endif %}>Fall</option>
                                 </select>
                             </label>
                         </div>
@@ -377,8 +377,8 @@
                             <label>Tenure Package Term
                                 <select name="tenure_package_term">
                                     <option value="">Default: 12th semester</option>
-                                    <option value="Fall" {% if selected and selected.tenure_package_term == 'Fall' %}selected{% endif %}>Fall</option>
                                     <option value="Winter" {% if selected and selected.tenure_package_term == 'Winter' %}selected{% endif %}>Winter</option>
+                                    <option value="Fall" {% if selected and selected.tenure_package_term == 'Fall' %}selected{% endif %}>Fall</option>
                                 </select>
                             </label>
                         </div>
@@ -454,8 +454,8 @@
                                         <select name="title_start_term_list">
                                             {% set title_start_term = row.get('start_term', '') %}
                                             <option value="">Select...</option>
-                                            <option value="Fall" {% if title_start_term == 'Fall' %}selected{% endif %}>Fall</option>
                                             <option value="Winter" {% if title_start_term == 'Winter' %}selected{% endif %}>Winter</option>
+                                            <option value="Fall" {% if title_start_term == 'Fall' %}selected{% endif %}>Fall</option>
                                         </select>
                                     </label>
                                 </div>
@@ -467,8 +467,8 @@
                                         <select name="title_end_term_list">
                                             {% set title_end_term = row.get('end_term', '') %}
                                             <option value="">Select...</option>
-                                            <option value="Fall" {% if title_end_term == 'Fall' %}selected{% endif %}>Fall</option>
                                             <option value="Winter" {% if title_end_term == 'Winter' %}selected{% endif %}>Winter</option>
+                                            <option value="Fall" {% if title_end_term == 'Fall' %}selected{% endif %}>Fall</option>
                                         </select>
                                     </label>
                                 </div>
@@ -504,8 +504,8 @@
                                         {% set role_start_term = row.get('start_term', '') %}
                                         <select name="service_role_start_term_list">
                                             <option value="">Select...</option>
-                                            <option value="Fall" {% if role_start_term == 'Fall' %}selected{% endif %}>Fall</option>
                                             <option value="Winter" {% if role_start_term == 'Winter' %}selected{% endif %}>Winter</option>
+                                            <option value="Fall" {% if role_start_term == 'Fall' %}selected{% endif %}>Fall</option>
                                         </select>
                                     </label>
                                 </div>
@@ -517,8 +517,8 @@
                                         {% set role_end_term = row.get('end_term', '') %}
                                         <select name="service_role_end_term_list">
                                             <option value="">Select...</option>
-                                            <option value="Fall" {% if role_end_term == 'Fall' %}selected{% endif %}>Fall</option>
                                             <option value="Winter" {% if role_end_term == 'Winter' %}selected{% endif %}>Winter</option>
+                                            <option value="Fall" {% if role_end_term == 'Fall' %}selected{% endif %}>Fall</option>
                                         </select>
                                     </label>
                                 </div>
@@ -556,8 +556,8 @@
                         <label>Start Year<input type="text" name="start_year" required></label>
                         <label>Start Term
                             <select name="start_term" required>
-                                <option value="Fall">Fall</option>
                                 <option value="Winter">Winter</option>
+                                <option value="Fall">Fall</option>
                             </select>
                         </label>
                     </div>
@@ -565,8 +565,8 @@
                         <label>End Year<input type="text" name="end_year" required></label>
                         <label>End Term
                             <select name="end_term" required>
-                                <option value="Fall">Fall</option>
                                 <option value="Winter">Winter</option>
+                                <option value="Fall">Fall</option>
                             </select>
                         </label>
                     </div>
@@ -819,8 +819,8 @@
                 <label>Start Year<input type="text" name="start_year" required></label>
                 <label>Start Term
                     <select name="start_term" required>
-                        <option value="Fall">Fall</option>
                         <option value="Winter">Winter</option>
+                        <option value="Fall">Fall</option>
                     </select>
                 </label>
             </div>
@@ -828,8 +828,8 @@
                 <label>End Year<input type="text" name="end_year" required></label>
                 <label>End Term
                     <select name="end_term" required>
-                        <option value="Fall">Fall</option>
                         <option value="Winter">Winter</option>
+                        <option value="Fall">Fall</option>
                     </select>
                 </label>
             </div>
@@ -892,8 +892,8 @@
             <label>Start Term
                 <select name="title_start_term_list">
                     <option value="">Select...</option>
-                    <option value="Fall">Fall</option>
                     <option value="Winter">Winter</option>
+                    <option value="Fall">Fall</option>
                 </select>
             </label>
         </div>
@@ -904,8 +904,8 @@
             <label>End Term
                 <select name="title_end_term_list">
                     <option value="">Select...</option>
-                    <option value="Fall">Fall</option>
                     <option value="Winter">Winter</option>
+                    <option value="Fall">Fall</option>
                 </select>
             </label>
         </div>
@@ -931,8 +931,8 @@
             <label>Start Term
                 <select name="service_role_start_term_list">
                     <option value="">Select...</option>
-                    <option value="Fall">Fall</option>
                     <option value="Winter">Winter</option>
+                    <option value="Fall">Fall</option>
                 </select>
             </label>
         </div>
@@ -943,8 +943,8 @@
             <label>End Term
                 <select name="service_role_end_term_list">
                     <option value="">Select...</option>
-                    <option value="Fall">Fall</option>
                     <option value="Winter">Winter</option>
+                    <option value="Fall">Fall</option>
                 </select>
             </label>
         </div>
