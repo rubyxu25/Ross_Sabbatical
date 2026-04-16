@@ -295,6 +295,8 @@
             <div class="card">
                 <h2>Employee List</h2>
                 <p class="hint">Create, open, and edit employee records.</p>
+                <a class="btn btn-primary" href="{{ url_for('home', role='hr') }}">Add New Profile</a>
+                <div class="spacer"></div>
                 <form method="get" action="{{ url_for('home') }}">
                     <input type="hidden" name="role" value="hr">
                     <label>Search (ID or Name)
@@ -308,7 +310,7 @@
                 <div class="spacer"></div>
                 <table>
                     <thead>
-                        <tr><th>ID</th><th>Name</th><th></th></tr>
+                        <tr><th>ID</th><th>Name</th><th></th><th></th></tr>
                     </thead>
                     <tbody>
                     {% for emp in employees %}
@@ -316,11 +318,17 @@
                             <td class="nowrap">{{ emp.employee_id }}</td>
                             <td>{{ emp.name or '-' }}</td>
                             <td><a class="btn btn-light" href="{{ url_for('home', role='hr', employee_id=emp.employee_id, q=search) }}">Open</a></td>
+                            <td>
+                                <form method="post" action="{{ url_for('hr_delete_employee') }}" onsubmit="return confirm('Delete this faculty profile? This cannot be undone.');">
+                                    <input type="hidden" name="employee_id" value="{{ emp.employee_id }}">
+                                    <button class="btn btn-danger" type="submit">Delete</button>
+                                </form>
+                            </td>
                         </tr>
                     {% endfor %}
                     {% if not employees %}
                         <tr>
-                            <td colspan="3">No matching employees.</td>
+                            <td colspan="4">No matching employees.</td>
                         </tr>
                     {% endif %}
                     </tbody>
@@ -329,7 +337,7 @@
 
             <div class="card card-strong">
                 <h3>Save Employee Profile</h3>
-                <form method="post" action="{{ url_for('hr_save_employee') }}">
+                <form method="post" action="{{ url_for('hr_save_employee') }}" id="save-profile-form">
                     {% set title_rows = selected.get('title_assignments', []) if selected else [] %}
                     {% if not title_rows %}
                         {% set single_title = selected.get('title_assignment', {}) if selected else {} %}
@@ -385,17 +393,31 @@
 
                     <div class="form-section">
                         <h4>2. Checkpoint Outcomes</h4>
+                        {% if checkpoints_disabled %}
+                        <p class="hint">
+                            Checkpoints are disabled for this profile because hire-time title is
+                            <strong>Associate Professor</strong> or <strong>Full Professor</strong>.
+                        </p>
+                        {% set cp = selected.checkpoint_status if selected else {} %}
+                        <table>
+                            <tbody>
+                                <tr><th>First Renew</th><td>{{ cp.get('first_renew', 'not applicable') }}</td></tr>
+                                <tr><th>Second Renew</th><td>{{ cp.get('second_renew', 'not applicable') }}</td></tr>
+                                <tr><th>Tenure Review</th><td>{{ cp.get('tenure_review', 'not applicable') }}</td></tr>
+                            </tbody>
+                        </table>
+                        {% else %}
                         <div class="row2">
                             <label>First Renew
                                 <select name="checkpoint_first_renew" id="checkpoint_first_renew">
-                                    {% for s in tenure_status %}
+                                    {% for s in renew_status %}
                                     <option value="{{ s }}" {% if selected and selected.checkpoint_status.first_renew == s %}selected{% endif %}>{{ s }}</option>
                                     {% endfor %}
                                 </select>
                             </label>
                             <label>Second Renew
                                 <select name="checkpoint_second_renew" id="checkpoint_second_renew">
-                                    {% for s in tenure_status %}
+                                    {% for s in renew_status %}
                                     <option value="{{ s }}" {% if selected and selected.checkpoint_status.second_renew == s %}selected{% endif %}>{{ s }}</option>
                                     {% endfor %}
                                 </select>
@@ -410,22 +432,15 @@
                                     {% endfor %}
                                 </select>
                             </label>
-                            <label id="second-renew-next-wrap">Next Year's Second Renew
-                                <select name="checkpoint_second_renew_next" id="checkpoint_second_renew_next">
-                                    {% set second_renew_next = selected.checkpoint_status.get('second_renew_next', '') if selected else '' %}
-                                    {% for s in next_renew_status %}
-                                    <option value="{{ s }}" {% if second_renew_next == s %}selected{% endif %}>{{ s or 'Select...' }}</option>
-                                    {% endfor %}
-                                </select>
-                            </label>
                         </div>
                         <label>Tenure Review
                             <select name="checkpoint_tenure_review">
-                                {% for s in tenure_status %}
+                                {% for s in tenure_review_status %}
                                 <option value="{{ s }}" {% if selected and selected.checkpoint_status.tenure_review == s %}selected{% endif %}>{{ s }}</option>
                                 {% endfor %}
                             </select>
                         </label>
+                        {% endif %}
                     </div>
 
                     <div class="form-section">
@@ -527,58 +542,54 @@
                         <div class="spacer"></div>
                         <button type="button" class="btn btn-light" id="add-role-assignment">Add Service Role Assignment</button>
                     </div>
+                </form>
+
+                    <div class="form-section">
+                        <h4>5. Add Event</h4>
+                        {% if selected %}
+                        <form method="post" action="{{ url_for('hr_add_event') }}">
+                            <input type="hidden" name="employee_id" value="{{ selected.employee_id }}">
+                            <label>Event Type
+                                <select name="event_type" required>
+                                    {% for key, label in event_labels.items() %}
+                                    <option value="{{ key }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </label>
+                            <div class="row2">
+                                <label>Start Year<input type="text" name="start_year" required></label>
+                                <label>Start Term
+                                    <select name="start_term" required>
+                                        <option value="Winter">Winter</option>
+                                        <option value="Fall">Fall</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="row2">
+                                <label>End Year<input type="text" name="end_year" required></label>
+                                <label>End Term
+                                    <select name="end_term" required>
+                                        <option value="Winter">Winter</option>
+                                        <option value="Fall">Fall</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <label>Sabbatical Duration (only for sabbatical)
+                                <select name="sabbatical_duration">
+                                    <option value="1">1 term</option>
+                                    <option value="2">2 terms</option>
+                                </select>
+                            </label>
+                            <button class="btn btn-primary" type="submit">Add Approved Event</button>
+                        </form>
+                        {% else %}
+                        <p class="hint">Save or open a profile first, then add events in step 5.</p>
+                        {% endif %}
+                    </div>
                     <div class="spacer"></div>
-                    <button class="btn btn-primary" type="submit">Save Profile</button>
-                </form>
-                {% if selected %}
-                <div class="spacer"></div>
-                <form method="post" action="{{ url_for('hr_delete_employee') }}" onsubmit="return confirm('Delete this faculty profile? This cannot be undone.');">
-                    <input type="hidden" name="employee_id" value="{{ selected.employee_id }}">
-                    <button class="btn btn-danger" type="submit">Delete Faculty Profile</button>
-                </form>
-                {% endif %}
+                    <button class="btn btn-primary" type="submit" form="save-profile-form">Save Profile</button>
             </div>
 
-            {% if selected %}
-            <div class="card">
-                <h3>Add Event (HR)</h3>
-                <form method="post" action="{{ url_for('hr_add_event') }}">
-                    <input type="hidden" name="employee_id" value="{{ selected.employee_id }}">
-                    <label>Event Type
-                        <select name="event_type" required>
-                            {% for key, label in event_labels.items() %}
-                            <option value="{{ key }}">{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                    </label>
-                    <div class="row2">
-                        <label>Start Year<input type="text" name="start_year" required></label>
-                        <label>Start Term
-                            <select name="start_term" required>
-                                <option value="Winter">Winter</option>
-                                <option value="Fall">Fall</option>
-                            </select>
-                        </label>
-                    </div>
-                    <div class="row2">
-                        <label>End Year<input type="text" name="end_year" required></label>
-                        <label>End Term
-                            <select name="end_term" required>
-                                <option value="Winter">Winter</option>
-                                <option value="Fall">Fall</option>
-                            </select>
-                        </label>
-                    </div>
-                    <label>Sabbatical Duration (only for sabbatical)
-                        <select name="sabbatical_duration">
-                            <option value="1">1 term</option>
-                            <option value="2">2 terms</option>
-                        </select>
-                    </label>
-                    <button class="btn btn-primary" type="submit">Add Approved Event</button>
-                </form>
-            </div>
-            {% endif %}
         </div>
 
         <div>
@@ -605,6 +616,7 @@
                                 <th>Renew Event</th>
                                 <th>Title</th>
                                 <th>Service Roles</th>
+                                <th>Leave(s)</th>
                                 <th>Side Notes</th>
                             </tr>
                         </thead>
@@ -644,6 +656,7 @@
                                         {% endfor %}
                                     </select>
                                 </td>
+                                <td>{{ row.leave_types }}</td>
                                 <td><input type="text" name="notes_{{ row.key }}" value="{{ selected.timeline_overrides.get(row.key, {}).get('side_notes', row.side_notes) }}"></td>
                             </tr>
                         {% endfor %}
@@ -668,6 +681,7 @@
                             <th>Renew Event</th>
                             <th>Title</th>
                             <th>Service Roles</th>
+                            <th>Leave(s)</th>
                             <th>Side Notes</th>
                         </tr>
                     </thead>
@@ -691,6 +705,7 @@
                             {% if row.title == 'Full Professor' %}{% set title_class = 'title-full' %}{% endif %}
                             <td class="{{ title_class }}">{{ row.title }}</td>
                             <td>{{ row.service_roles }}</td>
+                            <td>{{ row.leave_types }}</td>
                             <td>{{ row.side_notes }}</td>
                         </tr>
                     {% endfor %}
@@ -702,10 +717,11 @@
                 {% endif %}
 
                 <div class="spacer"></div>
-                <h3>Events</h3>
+                <h3>Added Events</h3>
+                <p class="hint">Only approved events affect the timeline sheet.</p>
                 <table>
                     <thead>
-                        <tr><th>#</th><th>Type</th><th>Range</th><th>Source</th><th>Status</th><th>Action</th></tr>
+                        <tr><th>#</th><th>Type</th><th>Range</th><th>Source</th><th>Status</th><th>Affects Timeline</th><th>Action</th></tr>
                     </thead>
                     <tbody>
                     {% for e in selected.events %}
@@ -715,6 +731,7 @@
                             <td>{{ e.start_term }} {{ e.start_year }} -> {{ e.end_term }} {{ e.end_year }}</td>
                             <td>{{ e.source }}</td>
                             <td>{{ e.status }}</td>
+                            <td>{% if e.status == 'approved' %}Yes{% else %}No{% endif %}</td>
                             <td>
                                 {% if e.status != 'approved' %}
                                 <form method="post" action="{{ url_for('hr_approve_event') }}">
@@ -722,12 +739,18 @@
                                     <input type="hidden" name="event_idx" value="{{ loop.index0 }}">
                                     <button class="btn btn-light" type="submit">Approve</button>
                                 </form>
-                                {% else %}
-                                -
                                 {% endif %}
+                                <form method="post" action="{{ url_for('hr_delete_event') }}" onsubmit="return confirm('Delete this event?');">
+                                    <input type="hidden" name="employee_id" value="{{ selected.employee_id }}">
+                                    <input type="hidden" name="event_idx" value="{{ loop.index0 }}">
+                                    <button class="btn btn-danger" type="submit">Delete</button>
+                                </form>
                             </td>
                         </tr>
                     {% endfor %}
+                    {% if not selected.events %}
+                        <tr><td colspan="7">No events added yet.</td></tr>
+                    {% endif %}
                     </tbody>
                 </table>
                 {% else %}
@@ -768,6 +791,7 @@
                     <th>Renew Event</th>
                     <th>Title</th>
                     <th>Service Roles</th>
+                    <th>Leave(s)</th>
                     <th>Side Notes</th>
                 </tr>
             </thead>
@@ -791,6 +815,7 @@
                     {% if row.title == 'Full Professor' %}{% set title_class = 'title-full' %}{% endif %}
                     <td class="{{ title_class }}">{{ row.title }}</td>
                     <td>{{ row.service_roles }}</td>
+                    <td>{{ row.leave_types }}</td>
                     <td>{{ row.side_notes }}</td>
                 </tr>
             {% endfor %}
@@ -1004,16 +1029,15 @@ function toggleNextRenewField(mainSelectId, wrapId, nextSelectId) {
     const nextSelect = document.getElementById(nextSelectId);
     if (!mainSelect || !wrap || !nextSelect) return;
     const sync = () => {
-        const failed = mainSelect.value === 'failed';
-        wrap.style.display = failed ? 'block' : 'none';
-        if (!failed) nextSelect.value = '';
+        const extended = mainSelect.value === 'extend';
+        wrap.style.display = extended ? 'block' : 'none';
+        if (!extended) nextSelect.value = '';
     };
     mainSelect.addEventListener('change', sync);
     sync();
 }
 
 toggleNextRenewField('checkpoint_first_renew', 'first-renew-next-wrap', 'checkpoint_first_renew_next');
-toggleNextRenewField('checkpoint_second_renew', 'second-renew-next-wrap', 'checkpoint_second_renew_next');
 </script>
 </body>
 </html>

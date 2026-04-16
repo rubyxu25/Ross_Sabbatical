@@ -1,12 +1,24 @@
 import csv
+import copy
+from datetime import date
 import io
+import json
+import os
+import sqlite3
 
 from flask import Flask, Response, redirect, render_template, request, url_for
 
 app = Flask(__name__)
 
-CURRENT_YEAR = 2026
-CURRENT_TERM = "Winter"
+def get_current_academic_term():
+    today = date.today()
+    # Simple two-term model:
+    # Jan-Jun -> Winter, Jul-Dec -> Fall.
+    term = "Winter" if today.month <= 6 else "Fall"
+    return today.year, term
+
+
+CURRENT_YEAR, CURRENT_TERM = get_current_academic_term()
 VALID_TERMS = {"Fall", "Winter"}
 TERM_ORDER = ["Winter", "Fall"]
 
@@ -25,6 +37,20 @@ BLOCKING_EVENT_TYPES = {
     EVENT_EXCLUSION,
 }
 
+TENURE_COUNTER_STOP_TYPES = {
+    EVENT_MEDICAL_EXT,
+    EVENT_MEDICAL_EXCL,
+    EVENT_EXCLUSION,
+    EVENT_EXTENSION,
+}
+
+TERM_COUNT_STOP_TYPES = {
+    EVENT_MEDICAL_EXT,
+    EVENT_MEDICAL_EXCL,
+    EVENT_EXCLUSION,
+    EVENT_EXTENSION,
+}
+
 MEDICAL_MIN_TERMS = {
     EVENT_MEDICAL: 1,
     EVENT_MEDICAL_EXT: 2,
@@ -40,8 +66,9 @@ EVENT_LABELS = {
     EVENT_EXTENSION: "Extension",
 }
 
-TENURE_STATUS = ["scheduled", "passed", "failed"]
-NEXT_RENEW_STATUS = ["", "passed", "failed"]
+RENEW_STATUS = ["scheduled", "passed", "failed", "extend"]
+TENURE_REVIEW_STATUS = ["scheduled", "passed", "failed"]
+NEXT_RENEW_STATUS = ["", "scheduled", "passed", "failed", "extend"]
 TITLE_OPTIONS = ["", "Assistant Professor", "Associate Professor", "Full Professor"]
 SERVICE_ROLE_OPTIONS = [
     "",
@@ -51,9 +78,10 @@ SERVICE_ROLE_OPTIONS = [
     "Program Director",
     "Committee Chair",
 ]
+SENIOR_TITLES = {"Associate Professor", "Full Professor"}
 
-# In-memory store for prototype/demo usage.
-EMPLOYEES = {
+# Seed data for app startup / reset fallback.
+INITIAL_EMPLOYEES = {
     "E1001": {
         "employee_id": "E1001",
         "name": "",
@@ -227,6 +255,234 @@ EMPLOYEES = {
     },
 }
 
+DB_PATH = os.environ.get("SABBATICAL_DB_PATH", os.path.join(os.path.dirname(__file__), "sabbatical.db"))
+EMPLOYEES = copy.deepcopy(INITIAL_EMPLOYEES)
+
+
+def default_employee_record(employee_id):
+    return {
+        "employee_id": employee_id,
+        "name": "",
+        "hire_year": "",
+        "hire_term": "",
+        "tenure_package_year": "",
+        "tenure_package_term": "",
+        "checkpoint_status": {
+            "first_renew": "scheduled",
+            "second_renew": "scheduled",
+            "tenure_review": "scheduled",
+            "first_renew_next": "",
+            "second_renew_next": "",
+        },
+        "events": [],
+        "timeline_overrides": {},
+        "title_assignments": [],
+        "title_assignment": {
+            "name": "",
+            "start_year": "",
+            "start_term": "",
+            "end_year": "",
+            "end_term": "",
+        },
+        "service_role_assignments": [],
+        "service_role_assignment": {
+            "name": "",
+            "start_year": "",
+            "start_term": "",
+            "end_year": "",
+            "end_term": "",
+        },
+    }
+
+
+def normalize_employee_record(employee_id, raw):
+    base = default_employee_record(employee_id)
+    if not isinstance(raw, dict):
+        return base
+
+    base["employee_id"] = str(raw.get("employee_id") or employee_id)
+    for key in ("name", "hire_year", "hire_term", "tenure_package_year", "tenure_package_term"):
+        if key in raw:
+            base[key] = str(raw.get(key) or "")
+
+    checkpoint = raw.get("checkpoint_status")
+    if isinstance(checkpoint, dict):
+        for key in ("first_renew", "second_renew", "tenure_review"):
+            val = checkpoint.get(key, "scheduled")
+            if key == "tenure_review":
+                base["checkpoint_status"][key] = val if val in TENURE_REVIEW_STATUS else "scheduled"
+            else:
+                base["checkpoint_status"][key] = val if val in RENEW_STATUS else "scheduled"
+        for key in ("first_renew_next", "second_renew_next"):
+            val = checkpoint.get(key, "")
+            base["checkpoint_status"][key] = val if val in NEXT_RENEW_STATUS else ""
+
+    events = raw.get("events")
+    if isinstance(events, list):
+        base["events"] = [e for e in events if isinstance(e, dict)]
+
+    overrides = raw.get("timeline_overrides")
+    if isinstance(overrides, dict):
+        cleaned = {}
+        for k, v in overrides.items():
+            if isinstance(v, dict):
+                cleaned[str(k)] = {str(x): ("" if y is None else str(y)) for x, y in v.items()}
+        base["timeline_overrides"] = cleaned
+
+    for key in ("title_assignments", "service_role_assignments"):
+        arr = raw.get(key)
+        if isinstance(arr, list):
+            base[key] = [x for x in arr if isinstance(x, dict)]
+
+    for key in ("title_assignment", "service_role_assignment"):
+        val = raw.get(key)
+        if isinstance(val, dict):
+            base[key] = val
+
+    return base
+
+
+def init_db():
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                data TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+
+def save_employees_to_db():
+    init_db()
+    data = json.dumps(EMPLOYEES, ensure_ascii=False)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO app_state (id, data, updated_at)
+            VALUES (1, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+                data = excluded.data,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (data,),
+        )
+
+
+def load_employees_from_db():
+    global EMPLOYEES
+    init_db()
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute("SELECT data FROM app_state WHERE id = 1").fetchone()
+    if not row:
+        save_employees_to_db()
+        return
+    try:
+        parsed = json.loads(row[0])
+        if not isinstance(parsed, dict):
+            return
+        normalized = {}
+        for employee_id, raw in parsed.items():
+            employee_key = str(employee_id)
+            normalized[employee_key] = normalize_employee_record(employee_key, raw)
+        if normalized:
+            EMPLOYEES = normalized
+    except (json.JSONDecodeError, TypeError, ValueError):
+        # keep current in-memory defaults if DB is malformed
+        return
+
+
+def refresh_employees():
+    load_employees_from_db()
+    changed = False
+    for emp in EMPLOYEES.values():
+        if clear_legacy_bulk_calculated_overrides(emp):
+            changed = True
+        if prune_redundant_timeline_overrides(emp):
+            changed = True
+    if changed:
+        save_employees_to_db()
+
+
+def append_event_atomic(employee_id, event):
+    global EMPLOYEES
+    init_db()
+    with sqlite3.connect(DB_PATH, timeout=10) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT data FROM app_state WHERE id = 1").fetchone()
+        if row:
+            try:
+                parsed = json.loads(row[0])
+                current = parsed if isinstance(parsed, dict) else {}
+            except (json.JSONDecodeError, TypeError, ValueError):
+                current = {}
+        else:
+            current = {}
+
+        normalized = {}
+        for key, raw in current.items():
+            employee_key = str(key)
+            normalized[employee_key] = normalize_employee_record(employee_key, raw)
+        if not normalized:
+            normalized = copy.deepcopy(INITIAL_EMPLOYEES)
+
+        emp = normalized.get(employee_id) or default_employee_record(employee_id)
+        emp["events"] = list(emp.get("events", []))
+        emp["events"].append(event)
+        normalized[employee_id] = normalize_employee_record(employee_id, emp)
+
+        conn.execute(
+            """
+            INSERT INTO app_state (id, data, updated_at)
+            VALUES (1, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+                data = excluded.data,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (json.dumps(normalized, ensure_ascii=False),),
+        )
+        EMPLOYEES = normalized
+
+
+def clear_leave_type_overrides(emp):
+    overrides = emp.get("timeline_overrides") or {}
+    cleaned = {}
+    for key, override in overrides.items():
+        if not isinstance(override, dict):
+            continue
+        new_override = dict(override)
+        new_override["leave_types"] = ""
+        if any((str(v).strip() != "") for k, v in new_override.items() if k != "leave_types"):
+            cleaned[key] = new_override
+    emp["timeline_overrides"] = cleaned
+
+
+def clear_calculated_timeline_overrides(emp):
+    # Remove stale computed-field overrides so timeline logic can recompute
+    # after profile/event changes (e.g., term-count stop rules).
+    overrides = emp.get("timeline_overrides") or {}
+    cleaned = {}
+    computed_fields = {
+        "term_count",
+        "sabbaticals_counter",
+        "sabbatical_bank",
+        "eligibility_status",
+        "review_event",
+        "renew_event",
+        "leave_types",
+    }
+    for key, override in overrides.items():
+        if not isinstance(override, dict):
+            continue
+        new_override = dict(override)
+        for field in computed_fields:
+            new_override[field] = ""
+        if any((str(v).strip() != "") for _, v in new_override.items()):
+            cleaned[key] = new_override
+    emp["timeline_overrides"] = cleaned
+
 
 def parse_int(value, field_name, required=True):
     if value is None or str(value).strip() == "":
@@ -269,39 +525,7 @@ def get_employee(employee_id):
 
 def ensure_employee(employee_id):
     if employee_id not in EMPLOYEES:
-        EMPLOYEES[employee_id] = {
-            "employee_id": employee_id,
-            "name": "",
-            "hire_year": "",
-            "hire_term": "",
-            "tenure_package_year": "",
-            "tenure_package_term": "",
-            "checkpoint_status": {
-                "first_renew": "scheduled",
-                "second_renew": "scheduled",
-                "tenure_review": "scheduled",
-                "first_renew_next": "",
-                "second_renew_next": "",
-            },
-            "events": [],
-            "timeline_overrides": {},
-            "title_assignments": [],
-            "title_assignment": {
-                "name": "",
-                "start_year": "",
-                "start_term": "",
-                "end_year": "",
-                "end_term": "",
-            },
-            "service_role_assignments": [],
-            "service_role_assignment": {
-                "name": "",
-                "start_year": "",
-                "start_term": "",
-                "end_year": "",
-                "end_term": "",
-            },
-        }
+        EMPLOYEES[employee_id] = default_employee_record(employee_id)
     return EMPLOYEES[employee_id]
 
 
@@ -314,6 +538,37 @@ def is_term_blocked(term_idx, approved_events):
         if s <= term_idx <= t:
             return True, e["event_type"]
     return False, None
+
+
+def event_types_at_term(term_idx, approved_events):
+    types = set()
+    for e in approved_events:
+        s = get_term_index(e["start_year"], e["start_term"])
+        t = get_term_index(e["end_year"], e["end_term"])
+        if s <= term_idx <= t:
+            types.add(e["event_type"])
+    return types
+
+
+def collect_leave_maps(approved_events):
+    term_map = {}
+    year_map = {}
+    for e in approved_events:
+        e_type = e.get("event_type")
+        if e_type not in EVENT_LABELS:
+            continue
+        label = EVENT_LABELS.get(e_type, e_type)
+        s_idx = get_term_index(e["start_year"], e["start_term"])
+        e_idx = get_term_index(e["end_year"], e["end_term"])
+        for idx in range(s_idx, e_idx + 1):
+            term_map.setdefault(idx, [])
+            if label not in term_map[idx]:
+                term_map[idx].append(label)
+            year, _ = get_year_term(idx)
+            year_map.setdefault(year, [])
+            if label not in year_map[year]:
+                year_map[year].append(label)
+    return term_map, year_map
 
 
 def build_checkpoint_schedule(hire_idx, package_idx):
@@ -337,8 +592,15 @@ def parse_optional_assignment(assignment, field_prefix):
     if not any_filled:
         return None
 
-    if not (name and start_year_raw and start_term_raw and end_year_raw and end_term_raw):
-        raise ValueError(f"Incomplete {field_prefix} assignment. Please fill name/start/end year+term.")
+    if not (name and start_year_raw and start_term_raw):
+        raise ValueError(f"Incomplete {field_prefix} assignment. Please fill name/start year+term.")
+
+    # If end time is omitted, default to current term/year ("until now").
+    if end_year_raw == "" and end_term_raw == "":
+        end_year_raw = str(CURRENT_YEAR)
+        end_term_raw = CURRENT_TERM
+    elif end_year_raw == "" or end_term_raw == "":
+        raise ValueError(f"Incomplete {field_prefix} assignment end time. Fill both end year and end term, or leave both empty.")
 
     start_year = parse_int(start_year_raw, f"{field_prefix}_start_year")
     start_term = parse_term(start_term_raw, f"{field_prefix}_start_term")
@@ -402,6 +664,29 @@ def assignment_names_for_term(assignments, term_idx):
     return " / ".join(names)
 
 
+def effective_title_assignments(employee):
+    assignments = parse_assignment_list(employee.get("title_assignments", []), "title")
+    if not assignments:
+        fallback_title = parse_optional_assignment(employee.get("title_assignment", {}), "title")
+        if fallback_title:
+            assignments = [fallback_title]
+    return assignments
+
+
+def checkpoints_disabled_for_employee(employee):
+    # Disable renew/review/tenure checkpoints only when faculty starts as
+    # Associate/Full at hire time.
+    try:
+        hire_year = parse_int(employee.get("hire_year"), "hire_year")
+        hire_term = parse_term(employee.get("hire_term"), "hire_term")
+    except ValueError:
+        return False
+
+    hire_idx = get_term_index(hire_year, hire_term)
+    title_at_hire = assignment_name_for_term(effective_title_assignments(employee), hire_idx)
+    return title_at_hire in SENIOR_TITLES
+
+
 def merge_role_values(override_roles, computed_roles):
     override_roles = (override_roles or "").strip()
     computed_roles = (computed_roles or "").strip()
@@ -451,21 +736,9 @@ def build_employee_timeline(employee, years_ahead=6):
 
     package_year_raw = employee.get("tenure_package_year")
     package_term_raw = employee.get("tenure_package_term")
-    package_idx = hire_idx + 11
-    if package_year_raw and package_term_raw:
-        package_idx = get_term_index(parse_int(package_year_raw, "tenure_package_year"), parse_term(package_term_raw, "tenure_package_term"))
-        if package_idx < hire_idx:
-            package_idx = hire_idx
-
-    tenure_start_idx = package_idx + 1
-    checkpoint_schedule = build_checkpoint_schedule(hire_idx, package_idx)
     checkpoint_status = employee.get("checkpoint_status", {})
     tenure_passed = checkpoint_status.get("tenure_review") == "passed"
-    title_assignments = parse_assignment_list(employee.get("title_assignments", []), "title")
-    if not title_assignments:
-        fallback_title = parse_optional_assignment(employee.get("title_assignment", {}), "title")
-        if fallback_title:
-            title_assignments = [fallback_title]
+    title_assignments = effective_title_assignments(employee)
     role_assignments = parse_assignment_list(employee.get("service_role_assignments", []), "service_role")
     if not role_assignments:
         fallback_role = parse_optional_assignment(employee.get("service_role_assignment", {}), "service_role")
@@ -473,22 +746,66 @@ def build_employee_timeline(employee, years_ahead=6):
             role_assignments = [fallback_role]
 
     approved_events = [e for e in employee["events"] if e.get("status") == "approved"]
+    checkpoints_disabled = checkpoints_disabled_for_employee(employee)
+    leave_types_by_term, leave_types_by_year = collect_leave_maps(approved_events)
     sabbatical_starts = set()
     valid_terms = 0
     used = 0
+    term_counter = 0
+    tenure_counter = 0
+
+    first_renew_idx = None
+    second_renew_idx = None
+    default_package_idx = None
 
     per_term = {}
     max_idx = max(current_idx, hire_idx + years_ahead * 2)
 
     for idx in range(hire_idx, max_idx + 1):
         year, term = get_year_term(idx)
-        blocked, reason = is_term_blocked(idx, approved_events)
+        term_event_types = event_types_at_term(idx, approved_events)
+        if not any(t in TERM_COUNT_STOP_TYPES for t in term_event_types):
+            term_counter += 1
+        if not any(t in TENURE_COUNTER_STOP_TYPES for t in term_event_types):
+            tenure_counter += 1
+
+        if not checkpoints_disabled:
+            if first_renew_idx is None and tenure_counter >= 4:
+                first_renew_idx = idx
+            if second_renew_idx is None and tenure_counter >= 8:
+                second_renew_idx = idx
+            if default_package_idx is None and tenure_counter >= 12:
+                default_package_idx = idx
+
+        year_leave_types = leave_types_by_year.get(year, [])
+        blocked = bool(year_leave_types)
+        reason = "leave_year" if blocked else None
         if not blocked:
             valid_terms += 1
 
         # Sabbatical "usage" consumes one chance no matter 1 or 2 terms.
         taken_this_term = False
-        can_use_sabbatical = tenure_passed and idx >= tenure_start_idx
+        # Tenure becomes active when review passes and package has been submitted.
+        # Package submission defaults to the 12th tenure-counted term unless user overrides.
+        package_idx_for_gate = default_package_idx if default_package_idx is not None else hire_idx + 11
+        if package_year_raw and package_term_raw:
+            package_idx_for_gate = get_term_index(
+                parse_int(package_year_raw, "tenure_package_year"),
+                parse_term(package_term_raw, "tenure_package_term"),
+            )
+            if package_idx_for_gate < hire_idx:
+                package_idx_for_gate = hire_idx
+        tenure_start_idx = package_idx_for_gate + 1
+
+        title_this_term = assignment_name_for_term(title_assignments, idx)
+        senior_title_this_term = title_this_term in SENIOR_TITLES
+
+        tenure_rights_active = tenure_passed and idx >= tenure_start_idx
+        senior_rights_active = senior_title_this_term
+        sabbatical_rights_active = tenure_rights_active or senior_rights_active
+        earned_total = valid_terms // 12
+        available_before_use = earned_total - used if sabbatical_rights_active else 0
+        can_use_sabbatical = sabbatical_rights_active and available_before_use >= 1
         for e in approved_events:
             if e["event_type"] != EVENT_SABBATICAL:
                 continue
@@ -498,18 +815,21 @@ def build_employee_timeline(employee, years_ahead=6):
                 used += 1
                 taken_this_term = True
 
-        earned_total = valid_terms // 12
-        available = earned_total - used if tenure_passed else 0
-        if tenure_passed:
+        available = earned_total - used if sabbatical_rights_active else 0
+        if sabbatical_rights_active:
             # Once bank earns +1, counter should roll over by 12 immediately.
             counter = valid_terms - earned_total * 12
         else:
             # Before tenure is passed, counter can continue beyond 12/12.
             counter = valid_terms
-        tenure_active = tenure_passed and idx >= tenure_start_idx
+        tenure_active = tenure_rights_active
 
         if taken_this_term:
             eligibility = "Taken"
+        elif senior_rights_active and available >= 1:
+            eligibility = "Eligible - Not Taken"
+        elif senior_rights_active and available < 1:
+            eligibility = "Not Eligible"
         elif not tenure_active:
             eligibility = "Pre-tenure" if idx < tenure_start_idx else "Not Eligible"
         elif available >= 1:
@@ -520,7 +840,7 @@ def build_employee_timeline(employee, years_ahead=6):
         per_term[idx] = {
             "year": year,
             "term": term,
-            "term_count": idx - hire_idx + 1,
+            "term_count": term_counter,
             "blocked": blocked,
             "reason": reason,
             "valid_terms": valid_terms,
@@ -536,6 +856,25 @@ def build_employee_timeline(employee, years_ahead=6):
     rows = []
     prev_available = None
 
+    package_idx = default_package_idx if default_package_idx is not None else hire_idx + 11
+    if package_year_raw and package_term_raw:
+        package_idx = get_term_index(
+            parse_int(package_year_raw, "tenure_package_year"),
+            parse_term(package_term_raw, "tenure_package_term"),
+        )
+        if package_idx < hire_idx:
+            package_idx = hire_idx
+    tenure_review_1_idx = package_idx + 1
+    tenure_review_2_idx = package_idx + 2
+    checkpoint_schedule = {
+        "first_renew": first_renew_idx,
+        "second_renew": second_renew_idx,
+        "tenure_package": package_idx,
+        "tenure_review_1": tenure_review_1_idx,
+        "tenure_review_2": tenure_review_2_idx,
+    }
+    auto_associate_start_idx = checkpoint_schedule["tenure_package"] + 1
+
     for idx in range(hire_idx, max_idx + 1):
         snap = per_term[idx]
         year = snap["year"]
@@ -545,30 +884,34 @@ def build_employee_timeline(employee, years_ahead=6):
         renew_event = []
         review_event = []
 
-        first_status = checkpoint_status.get("first_renew", "scheduled")
-        first_emoji = " 🎉" if first_status == "passed" else ""
-        if checkpoint_schedule["first_renew"] == idx:
-            renew_event.append(f"First renew{first_emoji} ({first_status})")
-        if checkpoint_schedule["first_renew"] + 2 == idx and checkpoint_status.get("first_renew") == "failed":
-            next_status = checkpoint_status.get("first_renew_next", "")
-            if next_status:
-                next_emoji = " 🎉" if next_status == "passed" else ""
-                renew_event.append(f"First renew (next year){next_emoji} ({next_status})")
-        second_status = checkpoint_status.get("second_renew", "scheduled")
-        second_emoji = " 🎉" if second_status == "passed" else ""
-        if checkpoint_schedule["second_renew"] == idx:
-            renew_event.append(f"Second renew{second_emoji} ({second_status})")
-        if checkpoint_schedule["second_renew"] + 2 == idx and checkpoint_status.get("second_renew") == "failed":
-            next_status = checkpoint_status.get("second_renew_next", "")
-            if next_status:
-                next_emoji = " 🎉" if next_status == "passed" else ""
-                renew_event.append(f"Second renew (next year){next_emoji} ({next_status})")
-        if checkpoint_schedule["tenure_package"] == idx:
-            review_event.append("Tenure package submit")
-        if checkpoint_schedule["tenure_review_1"] == idx or checkpoint_schedule["tenure_review_2"] == idx:
-            tenure_status = checkpoint_status.get("tenure_review", "scheduled")
-            tenure_emoji = " 🎉" if tenure_status == "passed" else ""
-            review_event.append(f"Tenure review{tenure_emoji} ({tenure_status})")
+        if not checkpoints_disabled:
+            first_status = checkpoint_status.get("first_renew", "scheduled")
+            allow_first_renew = (
+                checkpoint_schedule["first_renew"] is not None
+                and checkpoint_schedule["first_renew"] < checkpoint_schedule["tenure_package"]
+            )
+            first_emoji = " 🎉" if first_status == "passed" else ""
+            if allow_first_renew and checkpoint_schedule["first_renew"] is not None and checkpoint_schedule["first_renew"] == idx:
+                renew_event.append(f"First renew{first_emoji} ({first_status})")
+            if allow_first_renew and checkpoint_schedule["first_renew"] is not None and checkpoint_schedule["first_renew"] + 2 == idx and checkpoint_status.get("first_renew") == "extend":
+                next_status = checkpoint_status.get("first_renew_next", "")
+                if next_status:
+                    next_emoji = " 🎉" if next_status == "passed" else ""
+                    renew_event.append(f"First renew (next year){next_emoji} ({next_status})")
+            second_status = checkpoint_status.get("second_renew", "scheduled")
+            allow_second_renew = (
+                checkpoint_schedule["second_renew"] is not None
+                and checkpoint_schedule["second_renew"] < checkpoint_schedule["tenure_package"]
+            )
+            second_emoji = " 🎉" if second_status == "passed" else ""
+            if allow_second_renew and checkpoint_schedule["second_renew"] is not None and checkpoint_schedule["second_renew"] == idx:
+                renew_event.append(f"Second renew{second_emoji} ({second_status})")
+            if checkpoint_schedule["tenure_package"] == idx:
+                review_event.append("Tenure package submit")
+            if checkpoint_schedule["tenure_review_1"] == idx or checkpoint_schedule["tenure_review_2"] == idx:
+                tenure_status = checkpoint_status.get("tenure_review", "scheduled")
+                tenure_emoji = " 🎉" if tenure_status == "passed" else ""
+                review_event.append(f"Tenure review{tenure_emoji} ({tenure_status})")
 
         progress = snap["counter"]
 
@@ -579,6 +922,11 @@ def build_employee_timeline(employee, years_ahead=6):
             elif snap["available"] < prev_available:
                 bank_delta = -1
         prev_available = snap["available"]
+
+        manual_title = assignment_name_for_term(title_assignments, idx)
+        effective_title = manual_title
+        if not effective_title and tenure_passed and idx >= auto_associate_start_idx:
+            effective_title = "Associate Professor"
 
         base = {
             "key": key,
@@ -592,8 +940,9 @@ def build_employee_timeline(employee, years_ahead=6):
             "eligibility_status": snap["eligibility"],
             "review_event": " / ".join(review_event) if review_event else "",
             "renew_event": " / ".join(renew_event) if renew_event else "",
-            "title": assignment_name_for_term(title_assignments, idx),
+            "title": effective_title,
             "service_roles": assignment_names_for_term(role_assignments, idx),
+            "leave_types": " / ".join(leave_types_by_term.get(idx, [])),
             "side_notes": "",
         }
 
@@ -611,6 +960,8 @@ def build_employee_timeline(employee, years_ahead=6):
         ):
             val = override.get(field, "")
             if val != "":
+                if checkpoints_disabled and field in ("review_event", "renew_event"):
+                    continue
                 if field == "service_roles":
                     base[field] = merge_role_values(val, base[field])
                 else:
@@ -622,10 +973,100 @@ def build_employee_timeline(employee, years_ahead=6):
         "rows": rows,
         "hire_year": hire_year,
         "hire_term": hire_term,
-        "tenure_package_default": get_year_term(hire_idx + 11),
-        "tenure_review_default": [get_year_term(hire_idx + 12), get_year_term(hire_idx + 13)],
+        "tenure_package_default": get_year_term(default_package_idx if default_package_idx is not None else hire_idx + 11),
+        "tenure_review_default": [
+            get_year_term(tenure_review_1_idx if tenure_review_1_idx is not None else (hire_idx + 12)),
+            get_year_term(tenure_review_2_idx if tenure_review_2_idx is not None else (hire_idx + 13)),
+        ],
         "current_term": f"{CURRENT_TERM} {CURRENT_YEAR}",
     }
+
+
+def build_employee_timeline_without_overrides(employee, years_ahead=6):
+    employee_copy = copy.deepcopy(employee)
+    employee_copy["timeline_overrides"] = {}
+    return build_employee_timeline(employee_copy, years_ahead=years_ahead)
+
+
+def prune_redundant_timeline_overrides(emp):
+    overrides = emp.get("timeline_overrides") or {}
+    if not isinstance(overrides, dict) or not overrides:
+        return False
+
+    try:
+        baseline = build_employee_timeline_without_overrides(emp)
+    except ValueError:
+        return False
+
+    row_map = {row["key"]: row for row in baseline.get("rows", [])}
+    field_map = {
+        "term_count": "term_count",
+        "sabbaticals_counter": "sabbaticals_counter",
+        "sabbatical_bank": "sabbatical_bank",
+        "eligibility_status": "eligibility_status",
+        "review_event": "review_event",
+        "renew_event": "renew_event",
+        "title": "title",
+        "service_roles": "service_roles",
+        "leave_types": "leave_types",
+        "side_notes": "side_notes",
+    }
+
+    cleaned = {}
+    for key, override in overrides.items():
+        if not isinstance(override, dict):
+            continue
+        row = row_map.get(key, {})
+        new_override = {}
+        for f, raw_val in override.items():
+            val = "" if raw_val is None else str(raw_val).strip()
+            if val == "":
+                continue
+            baseline_field = field_map.get(f)
+            baseline_val = str(row.get(baseline_field, "")).strip() if baseline_field else ""
+            if baseline_field and val == baseline_val:
+                continue
+            new_override[f] = raw_val
+        if new_override:
+            cleaned[key] = new_override
+
+    if cleaned != overrides:
+        emp["timeline_overrides"] = cleaned
+        return True
+    return False
+
+
+def clear_legacy_bulk_calculated_overrides(emp):
+    overrides = emp.get("timeline_overrides") or {}
+    if not isinstance(overrides, dict) or not overrides:
+        return False
+
+    calc_fields = (
+        "term_count",
+        "sabbaticals_counter",
+        "sabbatical_bank",
+        "eligibility_status",
+        "review_event",
+        "renew_event",
+    )
+    calc_row_count = 0
+    for override in overrides.values():
+        if not isinstance(override, dict):
+            continue
+        if any((str(override.get(f, "")).strip() != "") for f in calc_fields):
+            calc_row_count += 1
+
+    try:
+        row_count = len(build_employee_timeline_without_overrides(emp).get("rows", []))
+    except ValueError:
+        return False
+
+    # Legacy bug pattern: finishing edit used to persist computed values for almost
+    # every row. In that case, clear computed overrides so current logic can apply.
+    if row_count and calc_row_count >= max(10, int(row_count * 0.7)):
+        clear_calculated_timeline_overrides(emp)
+        return True
+    return False
 
 
 def validate_event(event):
@@ -664,8 +1105,30 @@ def validate_event(event):
     }
 
 
+def validate_sabbatical_eligibility_for_event(employee, event):
+    if event.get("event_type") != EVENT_SABBATICAL:
+        return
+
+    timeline = build_employee_timeline(employee)
+    start_key = f"{event['start_year']}_{event['start_term']}"
+    target_row = next((row for row in timeline.get("rows", []) if row.get("key") == start_key), None)
+    if not target_row:
+        raise ValueError("Cannot evaluate sabbatical eligibility at the selected start term")
+
+    status = (target_row.get("eligibility_status") or "").strip()
+    if status != "Eligible - Not Taken":
+        raise ValueError(
+            f"Cannot take sabbatical leave at {event['start_term']} {event['start_year']} "
+            f"because eligibility is '{status}'"
+        )
+
+
+load_employees_from_db()
+
+
 @app.route("/")
 def home():
+    refresh_employees()
     role = request.args.get("role", "")
     employee_id = request.args.get("employee_id", "")
     search = (request.args.get("q") or "").strip()
@@ -699,10 +1162,12 @@ def home():
         selected=selected,
         timeline=timeline,
         event_labels=EVENT_LABELS,
-        tenure_status=TENURE_STATUS,
+        renew_status=RENEW_STATUS,
+        tenure_review_status=TENURE_REVIEW_STATUS,
         next_renew_status=NEXT_RENEW_STATUS,
         title_options=TITLE_OPTIONS,
         service_role_options=SERVICE_ROLE_OPTIONS,
+        checkpoints_disabled=checkpoints_disabled_for_employee(selected) if selected else False,
         error=error,
         current_year=CURRENT_YEAR,
     )
@@ -711,6 +1176,7 @@ def home():
 @app.post("/hr/save_employee")
 def hr_save_employee():
     try:
+        refresh_employees()
         employee_id = (request.form.get("employee_id") or "").strip()
         if not employee_id:
             raise ValueError("Employee ID is required")
@@ -771,18 +1237,26 @@ def hr_save_employee():
             if any((str(v).strip() != "") for k, v in new_override.items() if k != "service_roles"):
                 cleaned_overrides[key] = new_override
         emp["timeline_overrides"] = cleaned_overrides
+        clear_calculated_timeline_overrides(emp)
 
-        for key in ("first_renew", "second_renew", "tenure_review"):
-            status_val = request.form.get(f"checkpoint_{key}", "scheduled")
-            if status_val not in TENURE_STATUS:
-                status_val = "scheduled"
-            emp["checkpoint_status"][key] = status_val
+        if not checkpoints_disabled_for_employee(emp):
+            for key in ("first_renew", "second_renew"):
+                status_val = request.form.get(f"checkpoint_{key}", "scheduled")
+                if status_val not in RENEW_STATUS:
+                    status_val = "scheduled"
+                emp["checkpoint_status"][key] = status_val
 
-        for key in ("first_renew_next", "second_renew_next"):
-            status_val = request.form.get(f"checkpoint_{key}", "")
-            if status_val not in NEXT_RENEW_STATUS:
-                status_val = ""
-            emp["checkpoint_status"][key] = status_val
+            tenure_review_val = request.form.get("checkpoint_tenure_review", "scheduled")
+            if tenure_review_val not in TENURE_REVIEW_STATUS:
+                tenure_review_val = "scheduled"
+            emp["checkpoint_status"]["tenure_review"] = tenure_review_val
+
+            first_next = request.form.get("checkpoint_first_renew_next", "")
+            if first_next not in NEXT_RENEW_STATUS:
+                first_next = ""
+            emp["checkpoint_status"]["first_renew_next"] = first_next
+            # Keep legacy field empty; second renew extension follow-up is no longer used.
+            emp["checkpoint_status"]["second_renew_next"] = ""
 
         # validate basic timeline inputs when provided
         if emp["hire_year"] and emp["hire_term"]:
@@ -803,6 +1277,7 @@ def hr_save_employee():
             if parse_assignment_list([row], "service_role")
         ]
 
+        save_employees_to_db()
         return redirect(url_for("home", role="hr", employee_id=employee_id))
     except ValueError as exc:
         return redirect(url_for("home", role="hr", employee_id=request.form.get("employee_id", ""), error=str(exc)))
@@ -810,9 +1285,14 @@ def hr_save_employee():
 
 @app.post("/hr/add_event")
 def hr_add_event():
+    refresh_employees()
     employee_id = (request.form.get("employee_id") or "").strip()
     try:
-        emp = ensure_employee(employee_id)
+        if not employee_id:
+            raise ValueError("Employee ID is required")
+        emp = get_employee(employee_id)
+        if not emp:
+            raise ValueError("Employee not found")
         event = validate_event(
             {
                 "event_type": request.form.get("event_type"),
@@ -825,7 +1305,14 @@ def hr_add_event():
                 "source": "hr",
             }
         )
-        emp["events"].append(event)
+        validate_sabbatical_eligibility_for_event(emp, event)
+        append_event_atomic(employee_id, event)
+        refresh_employees()
+        emp = get_employee(employee_id)
+        if emp:
+            clear_calculated_timeline_overrides(emp)
+            clear_leave_type_overrides(emp)
+            save_employees_to_db()
         return redirect(url_for("home", role="hr", employee_id=employee_id))
     except ValueError as exc:
         return redirect(url_for("home", role="hr", employee_id=employee_id, error=str(exc)))
@@ -833,17 +1320,20 @@ def hr_add_event():
 
 @app.post("/hr/delete_employee")
 def hr_delete_employee():
+    refresh_employees()
     employee_id = (request.form.get("employee_id") or "").strip()
     if not employee_id:
         return redirect(url_for("home", role="hr", error="Employee ID is required"))
     if employee_id not in EMPLOYEES:
         return redirect(url_for("home", role="hr", error="Employee not found"))
     del EMPLOYEES[employee_id]
+    save_employees_to_db()
     return redirect(url_for("home", role="hr"))
 
 
 @app.post("/employee/request_leave")
 def employee_request_leave():
+    refresh_employees()
     employee_id = (request.form.get("employee_id") or "").strip()
     try:
         emp = get_employee(employee_id)
@@ -862,7 +1352,14 @@ def employee_request_leave():
                 "source": "employee",
             }
         )
-        emp["events"].append(event)
+        validate_sabbatical_eligibility_for_event(emp, event)
+        append_event_atomic(employee_id, event)
+        refresh_employees()
+        emp = get_employee(employee_id)
+        if emp:
+            clear_calculated_timeline_overrides(emp)
+            clear_leave_type_overrides(emp)
+            save_employees_to_db()
         return redirect(url_for("home", role="employee", employee_id=employee_id))
     except ValueError as exc:
         return redirect(url_for("home", role="employee", employee_id=employee_id, error=str(exc)))
@@ -870,6 +1367,7 @@ def employee_request_leave():
 
 @app.get("/timeline/export_csv")
 def export_timeline_csv():
+    refresh_employees()
     employee_id = (request.args.get("employee_id") or "").strip()
     emp = get_employee(employee_id)
     if not emp:
@@ -894,6 +1392,7 @@ def export_timeline_csv():
             "Renew Event",
             "Title",
             "Service Roles",
+            "Leaves",
             "Side Notes",
         ]
     )
@@ -910,6 +1409,7 @@ def export_timeline_csv():
                 row.get("renew_event", ""),
                 row.get("title", ""),
                 row.get("service_roles", ""),
+                row.get("leave_types", ""),
                 row.get("side_notes", ""),
             ]
         )
@@ -924,14 +1424,31 @@ def export_timeline_csv():
 
 @app.post("/hr/save_overrides")
 def hr_save_overrides():
+    refresh_employees()
     employee_id = (request.form.get("employee_id") or "").strip()
     emp = ensure_employee(employee_id)
+    checkpoints_disabled = checkpoints_disabled_for_employee(emp)
+    baseline_timeline = build_employee_timeline_without_overrides(emp)
+    baseline_map = {row["key"]: row for row in baseline_timeline.get("rows", [])}
 
     keys = request.form.getlist("override_key")
-    overrides = emp.get("timeline_overrides", {})
+    overrides = {}
+
+    field_map = {
+        "term_count": "term_count",
+        "sabbaticals_counter": "sabbaticals_counter",
+        "sabbatical_bank": "sabbatical_bank",
+        "eligibility_status": "eligibility_status",
+        "review_event": "review_event",
+        "renew_event": "renew_event",
+        "title": "title",
+        "service_roles": "service_roles",
+        "side_notes": "side_notes",
+    }
 
     for key in keys:
-        overrides[key] = {
+        row = baseline_map.get(key, {})
+        candidate = {
             "term_count": (request.form.get(f"term_count_{key}") or "").strip(),
             "sabbaticals_counter": (request.form.get(f"counter_{key}") or "").strip(),
             "sabbatical_bank": (request.form.get(f"bank_{key}") or "").strip(),
@@ -942,20 +1459,57 @@ def hr_save_overrides():
             "service_roles": (request.form.get(f"roles_{key}") or "").strip(),
             "side_notes": (request.form.get(f"notes_{key}") or "").strip(),
         }
+        if checkpoints_disabled:
+            candidate["review_event"] = ""
+            candidate["renew_event"] = ""
+        row_override = {}
+        for field, value in candidate.items():
+            baseline_val = str(row.get(field_map[field], "")).strip()
+            if value != "" and value != baseline_val:
+                row_override[field] = value
+        if row_override:
+            overrides[key] = row_override
 
     emp["timeline_overrides"] = overrides
+    clear_leave_type_overrides(emp)
+    save_employees_to_db()
     return redirect(url_for("home", role="hr", employee_id=employee_id, edit="0"))
 
 
 @app.post("/hr/approve_event")
 def hr_approve_event():
+    refresh_employees()
+    employee_id = (request.form.get("employee_id") or "").strip()
+    try:
+        event_idx = parse_int(request.form.get("event_idx"), "event_idx")
+        emp = get_employee(employee_id)
+        if not emp or event_idx is None or event_idx < 0 or event_idx >= len(emp["events"]):
+            return redirect(url_for("home", role="hr", employee_id=employee_id, error="Invalid event selection"))
+
+        event = emp["events"][event_idx]
+        validate_sabbatical_eligibility_for_event(emp, event)
+        emp["events"][event_idx]["status"] = "approved"
+        clear_calculated_timeline_overrides(emp)
+        clear_leave_type_overrides(emp)
+        save_employees_to_db()
+        return redirect(url_for("home", role="hr", employee_id=employee_id))
+    except ValueError as exc:
+        return redirect(url_for("home", role="hr", employee_id=employee_id, error=str(exc)))
+
+
+@app.post("/hr/delete_event")
+def hr_delete_event():
+    refresh_employees()
     employee_id = (request.form.get("employee_id") or "").strip()
     event_idx = parse_int(request.form.get("event_idx"), "event_idx")
     emp = get_employee(employee_id)
     if not emp or event_idx is None or event_idx < 0 or event_idx >= len(emp["events"]):
         return redirect(url_for("home", role="hr", employee_id=employee_id, error="Invalid event selection"))
 
-    emp["events"][event_idx]["status"] = "approved"
+    del emp["events"][event_idx]
+    clear_calculated_timeline_overrides(emp)
+    clear_leave_type_overrides(emp)
+    save_employees_to_db()
     return redirect(url_for("home", role="hr", employee_id=employee_id))
 
 
