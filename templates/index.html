@@ -185,6 +185,41 @@
             border-collapse: collapse;
             font-size: 0.86rem;
         }
+        .employee-list-wrap {
+            overflow-x: auto;
+        }
+        .employee-list-table {
+            table-layout: fixed;
+            min-width: 0;
+        }
+        .employee-list-table th:nth-child(1),
+        .employee-list-table td:nth-child(1) {
+            width: 72px;
+            white-space: nowrap;
+        }
+        .employee-list-table th:nth-child(2),
+        .employee-list-table td:nth-child(2) {
+            width: auto;
+            word-break: break-word;
+        }
+        .employee-list-table th:nth-child(3),
+        .employee-list-table td:nth-child(3),
+        .employee-list-table th:nth-child(4),
+        .employee-list-table td:nth-child(4) {
+            width: 96px;
+        }
+        .employee-list-table td:nth-child(3),
+        .employee-list-table td:nth-child(4) {
+            padding: 6px;
+        }
+        .employee-list-table td form {
+            margin: 0;
+        }
+        .employee-list-table td .btn {
+            width: 100%;
+            min-width: 0;
+            padding: 6px 8px;
+        }
         .table-wrap {
             overflow-x: auto;
         }
@@ -322,31 +357,33 @@
                     <button class="btn btn-light" type="submit">Search</button>
                 </form>
                 <div class="spacer"></div>
-                <table>
-                    <thead>
-                        <tr><th>ID</th><th>Name</th><th></th><th></th></tr>
-                    </thead>
-                    <tbody>
-                    {% for emp in employees %}
-                        <tr>
-                            <td class="nowrap">{{ emp.employee_id }}</td>
-                            <td>{{ emp.name or '-' }}</td>
-                            <td><a class="btn btn-light" href="{{ url_for('home', role='hr', employee_id=emp.employee_id, q=search) }}">Open</a></td>
-                            <td>
-                                <form method="post" action="{{ url_for('hr_delete_employee') }}" onsubmit="return confirm('Delete this faculty profile? This cannot be undone.');">
-                                    <input type="hidden" name="employee_id" value="{{ emp.employee_id }}">
-                                    <button class="btn btn-danger" type="submit">Delete</button>
-                                </form>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                    {% if not employees %}
-                        <tr>
-                            <td colspan="4">No matching employees.</td>
-                        </tr>
-                    {% endif %}
-                    </tbody>
-                </table>
+                <div class="employee-list-wrap">
+                    <table class="employee-list-table">
+                        <thead>
+                            <tr><th>ID</th><th>Name</th><th></th><th></th></tr>
+                        </thead>
+                        <tbody>
+                        {% for emp in employees %}
+                            <tr>
+                                <td class="nowrap">{{ emp.employee_id }}</td>
+                                <td>{{ emp.name or '-' }}</td>
+                                <td><a class="btn btn-light" href="{{ url_for('home', role='hr', employee_id=emp.employee_id, q=search) }}">Open</a></td>
+                                <td>
+                                    <form method="post" action="{{ url_for('hr_delete_employee') }}" onsubmit="return confirm('Delete this faculty profile? This cannot be undone.');">
+                                        <input type="hidden" name="employee_id" value="{{ emp.employee_id }}">
+                                        <button class="btn btn-danger" type="submit">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        {% if not employees %}
+                            <tr>
+                                <td colspan="4">No matching employees.</td>
+                            </tr>
+                        {% endif %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <div class="card card-strong">
