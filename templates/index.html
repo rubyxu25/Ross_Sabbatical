@@ -189,8 +189,8 @@
             overflow-x: auto;
         }
         .employee-list-table {
-            table-layout: fixed;
-            min-width: 0;
+            table-layout: auto;
+            min-width: 460px;
         }
         .employee-list-table th:nth-child(1),
         .employee-list-table td:nth-child(1) {
@@ -200,13 +200,15 @@
         .employee-list-table th:nth-child(2),
         .employee-list-table td:nth-child(2) {
             width: auto;
-            word-break: break-word;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .employee-list-table th:nth-child(3),
         .employee-list-table td:nth-child(3),
         .employee-list-table th:nth-child(4),
         .employee-list-table td:nth-child(4) {
-            width: 96px;
+            width: 86px;
         }
         .employee-list-table td:nth-child(3),
         .employee-list-table td:nth-child(4) {
@@ -218,7 +220,8 @@
         .employee-list-table td .btn {
             width: 100%;
             min-width: 0;
-            padding: 6px 8px;
+            padding: 6px 6px;
+            font-size: 13px;
         }
         .table-wrap {
             overflow-x: auto;
