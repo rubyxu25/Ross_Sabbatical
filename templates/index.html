@@ -186,29 +186,31 @@
             font-size: 0.86rem;
         }
         .employee-list-wrap {
-            overflow-x: auto;
+            overflow-x: hidden;
         }
         .employee-list-table {
-            table-layout: auto;
-            min-width: 460px;
+            table-layout: fixed;
+            width: 100%;
+            min-width: 0;
         }
         .employee-list-table th:nth-child(1),
         .employee-list-table td:nth-child(1) {
-            width: 72px;
+            width: 68px;
             white-space: nowrap;
         }
         .employee-list-table th:nth-child(2),
         .employee-list-table td:nth-child(2) {
-            width: auto;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            width: calc(100% - 156px);
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: anywhere;
+            line-height: 1.25;
         }
         .employee-list-table th:nth-child(3),
         .employee-list-table td:nth-child(3),
         .employee-list-table th:nth-child(4),
         .employee-list-table td:nth-child(4) {
-            width: 86px;
+            width: 78px;
         }
         .employee-list-table td:nth-child(3),
         .employee-list-table td:nth-child(4) {
@@ -221,7 +223,7 @@
             width: 100%;
             min-width: 0;
             padding: 6px 6px;
-            font-size: 13px;
+            font-size: 12px;
         }
         .table-wrap {
             overflow-x: auto;
