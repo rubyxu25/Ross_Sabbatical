@@ -30,7 +30,7 @@
             line-height: 1.45;
         }
         .container {
-            width: min(1680px, 98vw);
+            width: min(1840px, 98vw);
             margin: 18px auto 28px;
         }
         .hero {
@@ -101,7 +101,7 @@
         }
         .grid {
             display: grid;
-            grid-template-columns: 380px minmax(0, 1fr);
+            grid-template-columns: 340px minmax(0, 1fr);
             gap: 14px;
         }
         .card {
@@ -229,35 +229,97 @@
         .table-wrap {
             overflow-x: auto;
         }
+        .timeline-table {
+            table-layout: fixed;
+            width: 100%;
+            font-size: 0.74rem;
+        }
         .timeline-table th,
         .timeline-table td {
-            white-space: nowrap;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            padding: 4px 1px 4px 5px;
+            text-overflow: clip;
+            overflow: visible;
         }
         .timeline-table .col-narrow {
-            width: 84px;
+            width: auto;
         }
         .timeline-table th.col-narrow {
             white-space: normal;
             line-height: 1.1;
         }
         .timeline-table td.col-narrow {
-            white-space: nowrap;
+            white-space: normal;
         }
         .timeline-table td.col-narrow input {
             min-width: 0;
         }
         .timeline-table .col-counter {
-            width: 96px;
+            width: auto;
         }
         .timeline-table th.col-counter {
             white-space: normal;
             line-height: 1.1;
         }
         .timeline-table td.col-counter {
-            white-space: nowrap;
+            white-space: normal;
         }
         .timeline-table td.col-counter input {
             min-width: 0;
+        }
+        .timeline-table th:nth-child(1),
+        .timeline-table td:nth-child(1) {
+            width: 14ch;
+            white-space: nowrap;
+        }
+        .timeline-table th:nth-child(2),
+        .timeline-table td:nth-child(2) {
+            width: 72px;
+        }
+        .timeline-table th:nth-child(3),
+        .timeline-table td:nth-child(3) {
+            width: 78px;
+        }
+        .timeline-table th:nth-child(4),
+        .timeline-table td:nth-child(4) {
+            width: 68px;
+        }
+        .timeline-table th:nth-child(8),
+        .timeline-table td:nth-child(8) {
+            width: 130px;
+        }
+        .timeline-table th:nth-child(9),
+        .timeline-table td:nth-child(9) {
+            width: 120px;
+        }
+        .timeline-table th:nth-child(10),
+        .timeline-table td:nth-child(10) {
+            width: 110px;
+        }
+        .timeline-table th:nth-child(11),
+        .timeline-table td:nth-child(11) {
+            width: 110px;
+        }
+        .timeline-table th:nth-child(5),
+        .timeline-table td:nth-child(5) {
+            width: 110px;
+        }
+        .timeline-table th:nth-child(6),
+        .timeline-table td:nth-child(6) {
+            width: 110px;
+        }
+        .timeline-table th:nth-child(7),
+        .timeline-table td:nth-child(7) {
+            width: 110px;
+        }
+        .timeline-table td input,
+        .timeline-table td select {
+            width: 100%;
+            min-width: 0;
+            font-size: 0.74rem;
+            padding: 4px 6px;
         }
         .title-assistant {
             background: #e8f1ff;
@@ -285,6 +347,11 @@
             position: sticky;
             top: 0;
             z-index: 1;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: normal !important;
+            font-size: 0.72rem;
+            line-height: 1.1;
         }
         .pill {
             display: inline-block;

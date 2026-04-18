@@ -738,18 +738,6 @@ def build_employee_timeline(employee, years_ahead=6):
     package_year_raw = employee.get("tenure_package_year")
     package_term_raw = employee.get("tenure_package_term")
     checkpoint_status = employee.get("checkpoint_status", {})
-    block_after_failed_extended_first_renew = (
-        checkpoint_status.get("first_renew") == "extend"
-        and checkpoint_status.get("first_renew_next") == "failed"
-    )
-    block_after_second_renew_failure = (
-        checkpoint_status.get("second_renew") == "failed"
-        or (
-            checkpoint_status.get("second_renew") == "extend"
-            and checkpoint_status.get("second_renew_next") == "failed"
-        )
-    )
-    block_tenure_pipeline = block_after_failed_extended_first_renew or block_after_second_renew_failure
     tenure_passed = checkpoint_status.get("tenure_review") == "passed"
     title_assignments = effective_title_assignments(employee)
     role_assignments = parse_assignment_list(employee.get("service_role_assignments", []), "service_role")
@@ -785,10 +773,9 @@ def build_employee_timeline(employee, years_ahead=6):
         if not checkpoints_disabled:
             if first_renew_idx is None and tenure_counter >= 4:
                 first_renew_idx = idx
-            if not block_after_failed_extended_first_renew:
-                if second_renew_idx is None and tenure_counter >= 8:
-                    second_renew_idx = idx
-            if not block_tenure_pipeline and default_package_idx is None and tenure_counter >= 12:
+            if second_renew_idx is None and tenure_counter >= 8:
+                second_renew_idx = idx
+            if default_package_idx is None and tenure_counter >= 12:
                 default_package_idx = idx
 
         blocked = any(t in SABBATICAL_COUNTER_STOP_TYPES for t in term_event_types)
@@ -814,7 +801,7 @@ def build_employee_timeline(employee, years_ahead=6):
         title_this_term = assignment_name_for_term(title_assignments, idx)
         senior_title_this_term = title_this_term in SENIOR_TITLES
 
-        tenure_rights_active = (not block_tenure_pipeline) and tenure_passed and idx >= tenure_start_idx
+        tenure_rights_active = tenure_passed and idx >= tenure_start_idx
         senior_rights_active = senior_title_this_term
         sabbatical_rights_active = tenure_rights_active or senior_rights_active
         earned_total = valid_terms // 12
@@ -892,17 +879,7 @@ def build_employee_timeline(employee, years_ahead=6):
         "tenure_review_1": tenure_review_1_idx,
         "tenure_review_2": tenure_review_2_idx,
     }
-    if block_after_failed_extended_first_renew:
-        checkpoint_schedule["second_renew"] = None
-    if block_tenure_pipeline:
-        checkpoint_schedule["tenure_package"] = None
-        checkpoint_schedule["tenure_review_1"] = None
-        checkpoint_schedule["tenure_review_2"] = None
-    auto_associate_start_idx = (
-        checkpoint_schedule["tenure_package"] + 1
-        if checkpoint_schedule["tenure_package"] is not None
-        else None
-    )
+    auto_associate_start_idx = checkpoint_schedule["tenure_package"] + 1
 
     for idx in range(hire_idx, max_idx + 1):
         snap = per_term[idx]
@@ -917,10 +894,7 @@ def build_employee_timeline(employee, years_ahead=6):
             first_status = checkpoint_status.get("first_renew", "scheduled")
             allow_first_renew = (
                 checkpoint_schedule["first_renew"] is not None
-                and (
-                    checkpoint_schedule["tenure_package"] is None
-                    or checkpoint_schedule["first_renew"] < checkpoint_schedule["tenure_package"]
-                )
+                and checkpoint_schedule["first_renew"] < checkpoint_schedule["tenure_package"]
             )
             first_emoji = " 🎉" if first_status == "passed" else ""
             if allow_first_renew and checkpoint_schedule["first_renew"] is not None and checkpoint_schedule["first_renew"] == idx:
@@ -933,19 +907,11 @@ def build_employee_timeline(employee, years_ahead=6):
             second_status = checkpoint_status.get("second_renew", "scheduled")
             allow_second_renew = (
                 checkpoint_schedule["second_renew"] is not None
-                and (
-                    checkpoint_schedule["tenure_package"] is None
-                    or checkpoint_schedule["second_renew"] < checkpoint_schedule["tenure_package"]
-                )
+                and checkpoint_schedule["second_renew"] < checkpoint_schedule["tenure_package"]
             )
             second_emoji = " 🎉" if second_status == "passed" else ""
             if allow_second_renew and checkpoint_schedule["second_renew"] is not None and checkpoint_schedule["second_renew"] == idx:
                 renew_event.append(f"Second renew{second_emoji} ({second_status})")
-            if allow_second_renew and checkpoint_schedule["second_renew"] is not None and checkpoint_schedule["second_renew"] + 2 == idx and checkpoint_status.get("second_renew") == "extend":
-                second_next_status = checkpoint_status.get("second_renew_next", "")
-                if second_next_status:
-                    second_next_emoji = " 🎉" if second_next_status == "passed" else ""
-                    renew_event.append(f"Second renew (next year){second_next_emoji} ({second_next_status})")
             if checkpoint_schedule["tenure_package"] == idx:
                 review_event.append("Tenure package submit")
             if checkpoint_schedule["tenure_review_1"] == idx or checkpoint_schedule["tenure_review_2"] == idx:
@@ -964,7 +930,7 @@ def build_employee_timeline(employee, years_ahead=6):
         prev_available = snap["available"]
 
         manual_title = assignment_name_for_term(title_assignments, idx)
-        if tenure_passed and auto_associate_start_idx is not None and idx >= auto_associate_start_idx:
+        if tenure_passed and idx >= auto_associate_start_idx:
             # After tenure pass, title becomes Associate by default and stays
             # Associate until a manual Full Professor assignment starts.
             effective_title = "Full Professor" if manual_title == "Full Professor" else "Associate Professor"
@@ -1004,10 +970,6 @@ def build_employee_timeline(employee, years_ahead=6):
             val = override.get(field, "")
             if val != "":
                 if checkpoints_disabled and field in ("review_event", "renew_event"):
-                    continue
-                if block_after_failed_extended_first_renew and field in ("review_event", "renew_event"):
-                    continue
-                if block_tenure_pipeline and field == "review_event":
                     continue
                 if field == "service_roles":
                     base[field] = merge_role_values(val, base[field])
@@ -1302,13 +1264,8 @@ def hr_save_employee():
             if first_next not in NEXT_RENEW_STATUS:
                 first_next = ""
             emp["checkpoint_status"]["first_renew_next"] = first_next
-            second_next = request.form.get(
-                "checkpoint_second_renew_next",
-                emp["checkpoint_status"].get("second_renew_next", ""),
-            )
-            if second_next not in NEXT_RENEW_STATUS:
-                second_next = ""
-            emp["checkpoint_status"]["second_renew_next"] = second_next
+            # Keep legacy field empty; second renew extension follow-up is no longer used.
+            emp["checkpoint_status"]["second_renew_next"] = ""
 
         # validate basic timeline inputs when provided
         if emp["hire_year"] and emp["hire_term"]:
@@ -1566,4 +1523,6 @@ def hr_delete_event():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "5050"))
+    app.run(debug=True, host=host, port=port)
